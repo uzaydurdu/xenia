@@ -1,7 +1,7 @@
 defmodule Xenia.MixProject do
   use Mix.Project
 
-  @version "0.1.0"
+  @version "0.1.1"
   @source_url "https://github.com/uzaydurdu/xenia"
 
   def project do
@@ -161,7 +161,7 @@ defmodule Xenia.MixProject do
       # The README's banner, at the same relative path as on GitHub.
       assets: %{"guides/images" => "guides/images"},
       logo: "guides/images/xenia-mark.png",
-      before_closing_body_tag: &before_closing_body_tag/1,
+      before_closing_head_tag: &before_closing_head_tag/1,
       extras: [
         "README.md",
         "guides/wrapping-a-library.md",
@@ -217,27 +217,18 @@ defmodule Xenia.MixProject do
     ]
   end
 
-  # HexDocs has its own light/dark switch (it puts a "dark" class on <body>),
-  # which can differ from the computer's setting that the README's <picture>
-  # follows. This shows the banner that matches HexDocs: the dark one (white
-  # name) on a dark page, the light one on a light page. GitHub ignores it.
-  defp before_closing_body_tag(:html) do
+  # The README's banner comes in two images, marked #gh-light-mode-only and
+  # #gh-dark-mode-only. GitHub and hex.pm show the one that matches their
+  # theme by themselves; HexDocs needs this rule, keyed to its own light/dark
+  # switch (it puts a "dark" class on <body>).
+  defp before_closing_head_tag(:html) do
     """
-    <script>
-      (() => {
-        const banner = document.querySelector('img[src*="xenia-banner-"]')
-        if (!banner) return
-        banner.closest("picture")?.querySelectorAll("source").forEach((source) => source.remove())
-        const sync = () => {
-          const theme = document.body.classList.contains("dark") ? "dark" : "light"
-          banner.src = banner.src.replace(/xenia-banner-(light|dark)/, `xenia-banner-${theme}`)
-        }
-        sync()
-        new MutationObserver(sync).observe(document.body, {attributes: true, attributeFilter: ["class"]})
-      })()
-    </script>
+    <style>
+      body:not(.dark) img[src$="#gh-dark-mode-only"],
+      body.dark img[src$="#gh-light-mode-only"] { display: none; }
+    </style>
     """
   end
 
-  defp before_closing_body_tag(_format), do: ""
+  defp before_closing_head_tag(_format), do: ""
 end

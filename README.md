@@ -1,11 +1,7 @@
 # Xenia
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="guides/images/xenia-banner-dark.png">
-    <img src="guides/images/xenia-banner-light.png" alt="Xenia" width="100%">
-  </picture>
-</p>
+![Xenia](guides/images/xenia-banner-light.png#gh-light-mode-only)
+![Xenia](guides/images/xenia-banner-dark.png#gh-dark-mode-only)
 
 <p align="center">
   <strong>Keep Phoenix in charge. Let JavaScript do what it does best.</strong><br>

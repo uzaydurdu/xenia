@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1 (2026-10-25)
+
+- The README's banner follows the light or dark theme on hex.pm and HexDocs
+  too, not only on GitHub.
+
 ## 0.1.0 (2026-10-25)
 
 The first release. The repository also has `examples/`, a runnable
