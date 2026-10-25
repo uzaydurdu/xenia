@@ -33,6 +33,70 @@ defmodule Xenia.Adapters.Monaco do
 
       createHooks({ Monaco: createMonaco({ load: () => import("monaco-editor") }) })
 
+  ## Setup
+
+  Monaco is the heaviest library to set up, so here is all of it.
+
+  **1. Install it:** `npm install monaco-editor@0.57.0 --save-exact --prefix assets`
+
+  **2. Create the adapter** in `assets/js/monaco.js`. Monaco finds its web
+  workers with `new URL(..., import.meta.url)`, which esbuild doesn't
+  bundle, so tell it where they are. The `import("monaco-editor")` is
+  written in your app, so esbuild finds it in your `assets/node_modules`:
+
+      import { createMonaco } from "xenia/monaco"
+
+      const WORKERS = {
+        json: "json", css: "css", scss: "css", less: "css",
+        html: "html", handlebars: "html", razor: "html",
+        typescript: "ts", javascript: "ts",
+      }
+
+      self.MonacoEnvironment = {
+        getWorker: (_id, label) => new Worker(`/assets/js/monaco/${WORKERS[label] ?? "editor"}.worker.js`),
+      }
+
+      export const monaco = createMonaco({ load: () => import("monaco-editor") })
+
+  Register it next to your other adapters: `createHooks({ Monaco: monaco })`.
+  To add completion providers or commands, pass
+  `setup: (monaco, editor) => disposable` to `createMonaco`.
+
+  **3. Build the workers** in `config/config.exs`: give `app.js` an entry
+  name, add the five worker files, and a loader for Monaco's icon font:
+
+      config :esbuild,
+        my_app: [
+          args: ~w(app=js/app.js
+                   monaco/editor.worker=node_modules/monaco-editor/esm/vs/editor/editor.worker.js
+                   monaco/json.worker=node_modules/monaco-editor/esm/vs/language/json/json.worker.js
+                   monaco/css.worker=node_modules/monaco-editor/esm/vs/language/css/css.worker.js
+                   monaco/html.worker=node_modules/monaco-editor/esm/vs/language/html/html.worker.js
+                   monaco/ts.worker=node_modules/monaco-editor/esm/vs/language/typescript/ts.worker.js
+                   --bundle --target=es2022 --outdir=../priv/static/assets/js
+                   --external:/fonts/* --external:/images/* --alias:@=. --loader:.ttf=file),
+          # cd and env as Phoenix generated them
+        ]
+
+  Restart `mix phx.server` after changing `config.exs`.
+
+  **4. Load Monaco's CSS.** esbuild writes the CSS Monaco imports next to
+  `app.js`. Add a second stylesheet to `root.html.heex`:
+
+      <link phx-track-static rel="stylesheet" href={~p"/assets/js/app.css"} />
+
+  **5. Use it,** with `import Xenia.Adapters.Monaco` in `html_helpers`, and
+  echo the client's `version` back from your change handler. That's how the
+  editor tells your echo of its own typing apart from a real update:
+
+      def handle_event("code_changed", %{"value" => code, "version" => version}, socket) do
+        {:noreply, assign(socket, code: code, version: version)}
+      end
+
+  Pass `version={nil}` for an authoritative update. Commands:
+  `Xenia.push_to(socket, "editor", "focus")`, and `"insert"` with
+  `%{text: "..."}`.
+
   ## Theme
 
   The editor follows the app's `theme` provider (light → `vs`, dark →
