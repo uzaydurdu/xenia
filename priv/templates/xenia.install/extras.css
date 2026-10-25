@@ -1,0 +1,83 @@
+/* Xenia: a faint grid at the top of the page, fading out. The layout puts
+   it behind the content with class="xenia-grid". */
+:root {
+  --xenia-grid-line: oklch(0% 0 0 / 0.05);
+}
+
+[data-theme="dark"] {
+  --xenia-grid-line: oklch(100% 0 0 / 0.06);
+}
+
+.xenia-grid {
+  background-image:
+    linear-gradient(to right, var(--xenia-grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--xenia-grid-line) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse 70% 100% at 50% 0%, #000 30%, transparent 75%);
+}
+
+/* Inline code in text: quiet, like the rest. */
+:where(p, li, td) > code {
+  border: 1px solid var(--color-base-300);
+  border-radius: 0.25rem;
+  background: var(--color-base-200);
+  padding: 0.05rem 0.3rem;
+  font-size: 0.875em;
+}
+
+::selection {
+  background: color-mix(in oklch, var(--color-primary) 25%, transparent);
+}
+
+/* The flash countdown (core_components.ex, flash/1, from mix xenia.install):
+   a line around the message's border that runs out in --flash-duration,
+   then the message closes. Hovering, or focus inside it, pauses it. */
+.flash-countdown {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.flash-countdown rect {
+  x: 1.5px;
+  y: 1.5px;
+  width: calc(100% - 3px);
+  height: calc(100% - 3px);
+  rx: calc(var(--radius-box) - 1.5px);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3px;
+  stroke-opacity: 0.55;
+  stroke-dasharray: 100;
+  stroke-linecap: round;
+  animation: flash-countdown var(--flash-duration, 5s) linear forwards;
+}
+
+.flash-countdown-sharp rect {
+  rx: 0;
+  stroke-linecap: butt;
+}
+
+/* Half the height, for both radii: a pill, not an ellipse. */
+.flash-countdown-pill rect {
+  ry: 50%;
+  rx: auto;
+}
+
+.alert:hover > .flash-countdown rect,
+.alert:focus-within > .flash-countdown rect {
+  animation-play-state: paused;
+}
+
+@keyframes flash-countdown {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: 100; }
+}
+
+/* Without motion, the line isn't drawn; the message still closes on time. */
+@media (prefers-reduced-motion: reduce) {
+  .flash-countdown rect { stroke-opacity: 0; }
+}
+

@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # The same versions as local development.
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "29"
+          elixir-version: "1.20.2"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: mix-${{ runner.os }}-${{ hashFiles('mix.lock') }}
+
+      - run: mix deps.get
+      - run: npm ci
+
+      # Formatting, warnings, the JS bundle, Elixir and JS tests, and the Hex
+      # package contents (see the `check` alias in mix.exs).
+      - run: mix check
+
+      # The built bundle is committed (CLAUDE.md §6, §11). `mix check` rebuilds
+      # it, so any difference means a commit forgot to include the rebuild.
+      - name: Committed bundle matches the sources
+        run: git diff --exit-code priv/static
+
+  # The examples app (examples/) against this checkout of Xenia: it must
+  # stay formatted, compile without warnings, pass its tests, and build its
+  # JavaScript. Its browser tests run by hand before a release.
+  examples:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: examples
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "29"
+          elixir-version: "1.20.2"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - run: mix deps.get
+      - run: npm ci --prefix assets
+      - run: mix format --check-formatted
+      - run: mix compile --warnings-as-errors
+      - run: mix test
+      - run: mix assets.setup
+      - run: mix assets.build

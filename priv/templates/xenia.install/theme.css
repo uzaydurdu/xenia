@@ -1,0 +1,71 @@
+/* Xenia's light and dark themes: plain, with Xenia's purple and gold.
+   Written by mix xenia.install; change any value, it's your app's CSS. */
+@plugin "DAISYUI_THEME_PATH" {
+  name: "dark";
+  default: false;
+  prefersdark: true;
+  color-scheme: "dark";
+  --color-base-100: oklch(14.5% 0 0);
+  --color-base-200: oklch(18% 0 0);
+  --color-base-300: oklch(26.9% 0 0);
+  --color-base-content: oklch(94.8% 0 0);
+  --color-primary: oklch(70.9% 0.159 293.5);
+  --color-primary-content: oklch(14.5% 0 0);
+  --color-secondary: oklch(94.8% 0 0);
+  --color-secondary-content: oklch(14.5% 0 0);
+  --color-accent: oklch(83.7% 0.164 84.4);
+  --color-accent-content: oklch(20.5% 0 0);
+  --color-neutral: oklch(26.9% 0 0);
+  --color-neutral-content: oklch(94.8% 0 0);
+  --color-info: oklch(71.5% 0.143 215.2);
+  --color-info-content: oklch(14.5% 0 0);
+  --color-success: oklch(76.5% 0.177 163.2);
+  --color-success-content: oklch(14.5% 0 0);
+  --color-warning: oklch(83.7% 0.164 84.4);
+  --color-warning-content: oklch(20.5% 0 0);
+  --color-error: oklch(70.4% 0.191 22.2);
+  --color-error-content: oklch(14.5% 0 0);
+  --radius-selector: 0.375rem;
+  --radius-field: 0.375rem;
+  --radius-box: 0.75rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+@plugin "DAISYUI_THEME_PATH" {
+  name: "light";
+  default: true;
+  prefersdark: false;
+  color-scheme: "light";
+  --color-base-100: oklch(100% 0 0);
+  --color-base-200: oklch(98.5% 0 0);
+  --color-base-300: oklch(92.2% 0 0);
+  --color-base-content: oklch(14.5% 0 0);
+  --color-primary: oklch(54.1% 0.247 293);
+  --color-primary-content: oklch(98.5% 0 0);
+  --color-secondary: oklch(14.5% 0 0);
+  --color-secondary-content: oklch(98.5% 0 0);
+  --color-accent: oklch(76.9% 0.165 70.1);
+  --color-accent-content: oklch(20.5% 0 0);
+  --color-neutral: oklch(20.5% 0 0);
+  --color-neutral-content: oklch(98.5% 0 0);
+  --color-info: oklch(60.9% 0.126 221.7);
+  --color-info-content: oklch(98.5% 0 0);
+  --color-success: oklch(59.6% 0.145 163.2);
+  --color-success-content: oklch(98.5% 0 0);
+  --color-warning: oklch(66.6% 0.179 58.3);
+  --color-warning-content: oklch(98.5% 0 0);
+  --color-error: oklch(57.7% 0.245 27.3);
+  --color-error-content: oklch(98.5% 0 0);
+  --radius-selector: 0.375rem;
+  --radius-field: 0.375rem;
+  --radius-box: 0.75rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}

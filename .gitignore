@@ -1,0 +1,37 @@
+# The directory Mix will write compiled artifacts to.
+/_build/
+
+# If you run "mix test --cover", coverage assets end up here.
+/cover/
+
+# The directory Mix downloads your dependencies sources to.
+/deps/
+
+# Where third-party dependencies like ExDoc output generated docs.
+/doc/
+
+# Temporary files, for example, from tests.
+/tmp/
+
+# If the VM crashes, it generates a dump, let's ignore it too.
+erl_crash.dump
+
+# Also ignore archive artifacts (built via "mix archive.build").
+*.ez
+
+# Ignore package tarball (built via "mix hex.build").
+xenia-*.tar
+
+# npm peer dependencies (monaco-editor) installed for local dev/build.
+/node_modules/
+
+
+# Private working documents: kept on the author's machine only, never on
+# the remote. (Untracked with `git rm --cached`; the files stay on disk.)
+/docs/ROADMAP.md
+/docs/RELEASING.md
+/docs/FORUM_POST.md
+/docs/FIRST_USER_BRIEF.md
+/docs/MENTOR_PROMPT.md
+/docs/EXAMPLE_APP.md
+/docs/brand/

@@ -1,0 +1,96 @@
+{
+  "name": "xenia",
+  "type": "module",
+  "private": true,
+  "main": "./priv/static/xenia.esm.js",
+  "module": "./priv/static/xenia.esm.js",
+  "exports": {
+    ".": "./priv/static/xenia.esm.js",
+    "./chartjs": "./priv/static/xenia-chartjs.esm.js",
+    "./d3": "./priv/static/xenia-d3.esm.js",
+    "./flatpickr": "./priv/static/xenia-flatpickr.esm.js",
+    "./fullcalendar": "./priv/static/xenia-fullcalendar.esm.js",
+    "./leaflet": "./priv/static/xenia-leaflet.esm.js",
+    "./monaco": "./priv/static/xenia-monaco.esm.js",
+    "./monaco-diff": "./priv/static/xenia-monaco-diff.esm.js",
+    "./shoelace-rating": "./priv/static/xenia-shoelace-rating.esm.js",
+    "./sortablejs": "./priv/static/xenia-sortablejs.esm.js",
+    "./tabulator": "./priv/static/xenia-tabulator.esm.js",
+    "./tiptap": "./priv/static/xenia-tiptap.esm.js",
+    "./tom-select": "./priv/static/xenia-tom-select.esm.js",
+    "./uppy": "./priv/static/xenia-uppy.esm.js",
+    "./wavesurfer": "./priv/static/xenia-wavesurfer.esm.js",
+    "./wavesurfer-multitrack": "./priv/static/xenia-wavesurfer-multitrack.esm.js",
+    "./xterm": "./priv/static/xenia-xterm.esm.js"
+  },
+  "peerDependencies": {
+    "@fullcalendar/core": "^6.1.0",
+    "@shoelace-style/shoelace": "^2.0.0",
+    "@tiptap/core": "^3.0.0",
+    "@uppy/core": "^4.0.0 || ^5.0.0 || ^6.0.0",
+    "@xterm/xterm": "^5.0.0 || ^6.0.0",
+    "chart.js": "^4.4.0",
+    "d3": "^7.0.0",
+    "flatpickr": "^4.6.0",
+    "leaflet": "^1.9.0",
+    "monaco-editor": "^0.57.0",
+    "sortablejs": "^1.15.0",
+    "tabulator-tables": "^6.0.0",
+    "tom-select": "^2.0.0",
+    "wavesurfer-multitrack": "^0.4.0",
+    "wavesurfer.js": "^7.0.0 || ^8.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@fullcalendar/core": {
+      "optional": true
+    },
+    "@shoelace-style/shoelace": {
+      "optional": true
+    },
+    "@tiptap/core": {
+      "optional": true
+    },
+    "@uppy/core": {
+      "optional": true
+    },
+    "@xterm/xterm": {
+      "optional": true
+    },
+    "chart.js": {
+      "optional": true
+    },
+    "d3": {
+      "optional": true
+    },
+    "flatpickr": {
+      "optional": true
+    },
+    "leaflet": {
+      "optional": true
+    },
+    "monaco-editor": {
+      "optional": true
+    },
+    "sortablejs": {
+      "optional": true
+    },
+    "tabulator-tables": {
+      "optional": true
+    },
+    "tom-select": {
+      "optional": true
+    },
+    "wavesurfer-multitrack": {
+      "optional": true
+    },
+    "wavesurfer.js": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "jsdom": "29.1.1"
+  },
+  "scripts": {
+    "test": "node --test test/js/*.js"
+  }
+}

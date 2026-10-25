@@ -1,0 +1,241 @@
+/* See the Tailwind configuration guide for advanced usage
+   https://tailwindcss.com/docs/configuration */
+
+@import "tailwindcss" source(none);
+@import "../node_modules/@shoelace-style/shoelace/dist/themes/light.css";
+/* The official adapters' CSS (each module's docs list what it needs) */
+@import "../node_modules/tom-select/dist/css/tom-select.css";
+@import "../node_modules/leaflet/dist/leaflet.css";
+@import "../node_modules/tabulator-tables/dist/css/tabulator_simple.min.css";
+@import "../node_modules/@xterm/xterm/css/xterm.css";
+@import "../node_modules/@uppy/core/dist/style.min.css";
+@import "../node_modules/@uppy/dashboard/dist/style.min.css";
+@import "phoenix-colocated/xenia_examples/colocated.css";
+@source "../css";
+@source "../js";
+@source "../../lib/xenia_examples_web";
+/* Required for Tailwind to automatically pick up changes in colocated CSS files in dev */
+@source "../../_build/dev/phoenix-colocated/xenia_examples/*/";
+
+/* A Tailwind plugin that makes "hero-#{ICON}" classes available.
+   The heroicons installation itself is managed by your mix.exs */
+@plugin "../vendor/heroicons";
+
+/* Iconify icons, built into this CSS file, like the Heroicons above:
+   <.icon name="lucide-save" class="size-5" />. Only the icons your templates
+   name are in the build. Each set is an npm package (@iconify-json/<set>). */
+@plugin "../vendor/iconify" {
+  sets: lucide, mdi;
+}
+
+/* daisyUI Tailwind Plugin. */
+@plugin "daisyui/packages/bundle/daisyui" {
+  themes: false;
+}
+
+/* Xenia's light and dark themes: plain, with Xenia's purple and gold.
+   Written by mix xenia.install; change any value, it's your app's CSS. */
+@plugin "daisyui/packages/bundle/daisyui-theme" {
+  name: "dark";
+  default: false;
+  prefersdark: true;
+  color-scheme: "dark";
+  --color-base-100: oklch(14.5% 0 0);
+  --color-base-200: oklch(18% 0 0);
+  --color-base-300: oklch(26.9% 0 0);
+  --color-base-content: oklch(94.8% 0 0);
+  --color-primary: oklch(70.9% 0.159 293.5);
+  --color-primary-content: oklch(14.5% 0 0);
+  --color-secondary: oklch(94.8% 0 0);
+  --color-secondary-content: oklch(14.5% 0 0);
+  --color-accent: oklch(83.7% 0.164 84.4);
+  --color-accent-content: oklch(20.5% 0 0);
+  --color-neutral: oklch(26.9% 0 0);
+  --color-neutral-content: oklch(94.8% 0 0);
+  --color-info: oklch(71.5% 0.143 215.2);
+  --color-info-content: oklch(14.5% 0 0);
+  --color-success: oklch(76.5% 0.177 163.2);
+  --color-success-content: oklch(14.5% 0 0);
+  --color-warning: oklch(83.7% 0.164 84.4);
+  --color-warning-content: oklch(20.5% 0 0);
+  --color-error: oklch(70.4% 0.191 22.2);
+  --color-error-content: oklch(14.5% 0 0);
+  --radius-selector: 0.375rem;
+  --radius-field: 0.375rem;
+  --radius-box: 0.75rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+@plugin "daisyui/packages/bundle/daisyui-theme" {
+  name: "light";
+  default: true;
+  prefersdark: false;
+  color-scheme: "light";
+  --color-base-100: oklch(100% 0 0);
+  --color-base-200: oklch(98.5% 0 0);
+  --color-base-300: oklch(92.2% 0 0);
+  --color-base-content: oklch(14.5% 0 0);
+  --color-primary: oklch(54.1% 0.247 293);
+  --color-primary-content: oklch(98.5% 0 0);
+  --color-secondary: oklch(14.5% 0 0);
+  --color-secondary-content: oklch(98.5% 0 0);
+  --color-accent: oklch(76.9% 0.165 70.1);
+  --color-accent-content: oklch(20.5% 0 0);
+  --color-neutral: oklch(20.5% 0 0);
+  --color-neutral-content: oklch(98.5% 0 0);
+  --color-info: oklch(60.9% 0.126 221.7);
+  --color-info-content: oklch(98.5% 0 0);
+  --color-success: oklch(59.6% 0.145 163.2);
+  --color-success-content: oklch(98.5% 0 0);
+  --color-warning: oklch(66.6% 0.179 58.3);
+  --color-warning-content: oklch(98.5% 0 0);
+  --color-error: oklch(57.7% 0.245 27.3);
+  --color-error-content: oklch(98.5% 0 0);
+  --radius-selector: 0.375rem;
+  --radius-field: 0.375rem;
+  --radius-box: 0.75rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+
+/* Add variants based on LiveView classes */
+@custom-variant phx-click-loading (.phx-click-loading&, .phx-click-loading &);
+@custom-variant phx-submit-loading (.phx-submit-loading&, .phx-submit-loading &);
+@custom-variant phx-change-loading (.phx-change-loading&, .phx-change-loading &);
+
+/* Use the data attribute for dark mode  */
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
+/* Make LiveView wrapper divs transparent for layout */
+[data-phx-session], [data-phx-teleported-src] { display: contents }
+
+/* This file is for your main application CSS */
+
+/* Xenia: a faint grid at the top of the page, fading out. The layout puts
+   it behind the content with class="xenia-grid". */
+:root {
+  --xenia-grid-line: oklch(0% 0 0 / 0.05);
+}
+
+[data-theme="dark"] {
+  --xenia-grid-line: oklch(100% 0 0 / 0.06);
+}
+
+.xenia-grid {
+  background-image:
+    linear-gradient(to right, var(--xenia-grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--xenia-grid-line) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse 70% 100% at 50% 0%, #000 30%, transparent 75%);
+}
+
+/* Inline code in text: quiet, like the rest. */
+:where(p, li, td) > code {
+  border: 1px solid var(--color-base-300);
+  border-radius: 0.25rem;
+  background: var(--color-base-200);
+  padding: 0.05rem 0.3rem;
+  font-size: 0.875em;
+}
+
+::selection {
+  background: color-mix(in oklch, var(--color-primary) 25%, transparent);
+}
+
+/* Tom Select and Tabulator ship light colors only. These lines give them
+   the theme's, so they follow light and dark mode like the rest. */
+.ts-wrapper .ts-control,
+.ts-wrapper.single.input-active .ts-control,
+.ts-dropdown,
+.ts-control input {
+  background: var(--color-base-100);
+  color: var(--color-base-content);
+  border-color: var(--color-base-300);
+}
+.ts-dropdown .active {
+  background: var(--color-base-200);
+  color: var(--color-base-content);
+}
+.ts-wrapper.multi .ts-control > div {
+  background: var(--color-base-200);
+  color: var(--color-base-content);
+}
+.tabulator,
+.tabulator .tabulator-header,
+.tabulator .tabulator-header .tabulator-col,
+.tabulator .tabulator-tableholder,
+.tabulator-row,
+.tabulator-row.tabulator-row-even {
+  background: var(--color-base-100);
+  color: var(--color-base-content);
+  border-color: var(--color-base-300);
+}
+.tabulator-row.tabulator-selectable:hover {
+  background: var(--color-base-200);
+}
+.tabulator .tabulator-header .tabulator-col,
+.tabulator-row .tabulator-cell {
+  border-color: var(--color-base-300);
+}
+
+/* The flash countdown (core_components.ex, flash/1): a line around the
+   message's border that runs out in --flash-duration, then the message
+   closes. Hovering, or focus inside it, pauses it. Inset by half the line,
+   so it follows the corners: rounded (the theme's), sharp or pill. */
+.flash-countdown {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.flash-countdown rect {
+  x: 1.5px;
+  y: 1.5px;
+  width: calc(100% - 3px);
+  height: calc(100% - 3px);
+  rx: calc(var(--radius-box) - 1.5px);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3px;
+  stroke-opacity: 0.55;
+  stroke-dasharray: 100;
+  stroke-linecap: round;
+  animation: flash-countdown var(--flash-duration, 5s) linear forwards;
+}
+
+.flash-countdown-sharp rect {
+  rx: 0;
+  stroke-linecap: butt;
+}
+
+/* Half the height, for both radii: a pill, not an ellipse. */
+.flash-countdown-pill rect {
+  ry: 50%;
+  rx: auto;
+}
+
+.alert:hover > .flash-countdown rect,
+.alert:focus-within > .flash-countdown rect {
+  animation-play-state: paused;
+}
+
+@keyframes flash-countdown {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: 100; }
+}
+
+/* Without motion, the line isn't drawn; the message still closes on time. */
+@media (prefers-reduced-motion: reduce) {
+  .flash-countdown rect { stroke-opacity: 0; }
+}
+

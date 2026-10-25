@@ -1,0 +1,176 @@
+## This file is a PO Template file.
+##
+## "msgid"s here are often extracted from source code.
+## Add new messages manually only if they're dynamic
+## messages that can't be statically extracted.
+##
+## Run "mix gettext.extract" to bring this file up to
+## date. Leave "msgstr"s empty as changing them here has no
+## effect: edit them in PO (.po) files instead.
+#
+msgid ""
+msgstr ""
+
+#: lib/xenia_examples_web/app/languages/page.ex:34
+#, elixir-autogen, elixir-format
+msgid "A widget in JavaScript"
+msgstr ""
+
+#: lib/xenia_examples_web/components/layouts.ex:92
+#: lib/xenia_examples_web/components/layouts.ex:107
+#, elixir-autogen, elixir-format
+msgid "Attempting to reconnect"
+msgstr ""
+
+#: lib/xenia_examples_web/app/languages/page.ex:33
+#, elixir-autogen, elixir-format
+msgid "Cancel"
+msgstr ""
+
+#: lib/xenia_examples_web/app/languages/page.ex:36
+#, elixir-autogen, elixir-format
+msgid "Change its number, then switch the language: the words change, the number stays."
+msgstr ""
+
+#: lib/xenia_examples_web/app/languages/page.ex:61
+#, elixir-autogen, elixir-format
+msgid "Changes discarded"
+msgstr ""
+
+#: lib/xenia_examples_web/components/core_components.ex:83
+#, elixir-autogen, elixir-format
+msgid "Close"
+msgstr ""
+
+#: lib/xenia_examples_web/app/notifications/page.ex:47
+#, elixir-autogen, elixir-format
+msgid "Could not save document. Please try again."
+msgstr ""
+
+#: lib/xenia_examples_web/app/settings/page.ex:29
+#, elixir-autogen, elixir-format
+msgid "Display name"
+msgstr ""
+
+#: lib/xenia_examples_web/app/icons/page.ex:21
+#, elixir-autogen, elixir-format
+msgid "Document deleted"
+msgstr ""
+
+#: lib/xenia_examples_web/app/icons/page.ex:18
+#: lib/xenia_examples_web/app/notifications/page.ex:44
+#, elixir-autogen, elixir-format
+msgid "Document saved successfully"
+msgstr ""
+
+#: lib/xenia_examples_web/app/icons/page.ex:24
+#, elixir-autogen, elixir-format
+msgid "Editing is only a demo here"
+msgstr ""
+
+#: lib/xenia_examples_web/app/settings/page.ex:39
+#, elixir-autogen, elixir-format
+msgid "Email notifications"
+msgstr ""
+
+#: lib/xenia_examples_web/app/languages/page.ex:40
+#, elixir-autogen, elixir-format
+msgid "Fewer"
+msgstr ""
+
+#: lib/xenia_examples_web/app/notifications/page.ex:30
+#, elixir-autogen, elixir-format
+msgid "Hello, %{name}!"
+msgstr ""
+
+#: lib/xenia_examples_web/locale.ex:83
+#, elixir-autogen, elixir-format
+msgid "Language"
+msgstr ""
+
+#: lib/xenia_examples_web/app/languages/page.ex:27
+#: lib/xenia_examples_web/app/languages/page.ex:29
+#, elixir-autogen, elixir-format
+msgid "Languages"
+msgstr ""
+
+#: lib/xenia_examples_web/app/languages/page.ex:41
+#, elixir-autogen, elixir-format
+msgid "More"
+msgstr ""
+
+#: lib/xenia_examples_web/app/settings/page.ex:30
+#, elixir-autogen, elixir-format
+msgid "Notifications"
+msgstr ""
+
+#: lib/xenia_examples_web/app/languages/page.ex:42
+#, elixir-autogen, elixir-format
+msgid "Reset"
+msgstr ""
+
+#: lib/xenia_examples_web/app/languages/page.ex:32
+#, elixir-autogen, elixir-format
+msgid "Save"
+msgstr ""
+
+#: lib/xenia_examples_web/app/settings/page.ex:31
+#, elixir-autogen, elixir-format
+msgid "Save changes"
+msgstr ""
+
+#: lib/xenia_examples_web/app/languages/page.ex:57
+#, elixir-autogen, elixir-format
+msgid "Saved"
+msgstr ""
+
+#: lib/xenia_examples_web/app/notifications/page.ex:37
+#, elixir-autogen, elixir-format
+msgid "Saved. You're on the Icons page now."
+msgstr ""
+
+#: lib/xenia_examples_web/app/languages/page.ex:65
+#, elixir-autogen, elixir-format
+msgid "Saves so far: %{count}"
+msgstr ""
+
+#: lib/xenia_examples_web/app/settings/page.ex:26
+#: lib/xenia_examples_web/app/settings/page.ex:28
+#, elixir-autogen, elixir-format
+msgid "Settings"
+msgstr ""
+
+#: lib/xenia_examples_web/app/settings/page.ex:56
+#, elixir-autogen, elixir-format
+msgid "Settings saved successfully"
+msgstr ""
+
+#: lib/xenia_examples_web/components/layouts.ex:99
+#, elixir-autogen, elixir-format
+msgid "Something went wrong!"
+msgstr ""
+
+#: lib/xenia_examples_web/app/languages/page.ex:31
+#, elixir-autogen, elixir-format
+msgid "This page, its messages and the widget below speak the language you pick."
+msgstr ""
+
+#: lib/xenia_examples_web/app/languages/page.ex:43
+#, elixir-autogen, elixir-format
+msgid "Total"
+msgstr ""
+
+#: lib/xenia_examples_web/components/layouts.ex:84
+#, elixir-autogen, elixir-format
+msgid "We can't find the internet"
+msgstr ""
+
+#: lib/xenia_examples_web/app/settings/page.ex:40
+#, elixir-autogen, elixir-format
+msgid "Weekly summary"
+msgstr ""
+
+#: lib/xenia_examples_web/app/notifications/page.ex:25
+#, elixir-autogen, elixir-format
+msgid "Your changes are saved automatically."
+msgstr ""

@@ -1,0 +1,42 @@
+{
+  "name": "xenia-examples",
+  "private": true,
+  "scripts": {
+    "e2e": "node --test e2e/*.test.mjs"
+  },
+  "dependencies": {
+    "@fullcalendar/core": "6.1.22",
+    "@fullcalendar/daygrid": "6.1.22",
+    "@fullcalendar/interaction": "6.1.22",
+    "@fullcalendar/list": "6.1.22",
+    "@fullcalendar/timegrid": "6.1.22",
+    "@iconify-json/lucide": "1.2.147",
+    "@iconify-json/mdi": "1.2.3",
+    "@shoelace-style/shoelace": "2.20.1",
+    "@tiptap/core": "3.32.0",
+    "@tiptap/extensions": "3.32.0",
+    "@tiptap/starter-kit": "3.32.0",
+    "@uppy/core": "6.3.0",
+    "@uppy/dashboard": "6.0.2",
+    "@uppy/tus": "6.0.0",
+    "@uppy/xhr-upload": "6.0.1",
+    "@xterm/addon-fit": "0.11.0",
+    "@xterm/addon-search": "0.16.0",
+    "@xterm/addon-web-links": "0.12.0",
+    "@xterm/xterm": "6.0.0",
+    "chart.js": "4.5.1",
+    "d3": "7.9.0",
+    "flatpickr": "4.6.13",
+    "leaflet": "1.9.4",
+    "monaco-editor": "0.57.0",
+    "sortablejs": "1.15.7",
+    "tabulator-tables": "6.7.1",
+    "tom-select": "2.6.2",
+    "wavesurfer-multitrack": "0.4.12",
+    "wavesurfer.js": "7.12.12",
+    "xenia": "file:../.."
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  }
+}

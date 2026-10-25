@@ -1,0 +1,125 @@
+  @doc """
+  Renders flash notices: info, success and error. Put them in
+  `flash_group/1` (layouts.ex), a column at the top right where they stack,
+  newest first.
+
+  With a `duration`, a message closes by itself: a line around its border
+  runs out (the "flash countdown" block in app.css), and hovering pauses
+  it. Added by `mix xenia.install`.
+
+  ## Examples
+
+      <.flash kind={:info} flash={@flash} />
+      <.flash kind={:success} flash={@flash} duration={5000} shape="sharp" />
+  """
+  attr :id, :string, doc: "the optional id of flash container"
+  attr :flash, :map, default: %{}, doc: "the map of flash messages to display"
+  attr :title, :string, default: nil
+  attr :kind, :atom, values: [:info, :success, :error], doc: "used for styling and flash lookup"
+
+  attr :duration, :integer,
+    default: nil,
+    doc:
+      "ms until the message closes by itself, with a countdown around its border; nil keeps it until clicked"
+
+  attr :shape, :string,
+    default: "rounded",
+    values: ~w(rounded sharp pill),
+    doc: "the corners: rounded (the theme's), sharp, or pill"
+
+  attr :rest, :global, doc: "the arbitrary HTML attributes to add to the flash container"
+
+  slot :inner_block, doc: "the optional inner block that renders the flash message"
+
+  def flash(assigns) do
+    assigns = assign_new(assigns, :id, fn -> "flash-#{assigns.kind}" end)
+
+    ~H"""
+    <div
+      :if={msg = render_slot(@inner_block) || Phoenix.Flash.get(@flash, @kind)}
+      id={@id}
+      phx-click={JS.push("lv:clear-flash", value: %{key: @kind}) |> hide("##{@id}")}
+      role={if @kind == :error, do: "alert", else: "status"}
+      class="pointer-events-auto"
+      phx-hook=".Flash"
+      {@rest}
+    >
+      <div
+        class={[
+          "alert relative w-80 sm:w-96 max-w-80 sm:max-w-96 text-wrap",
+          @kind == :info && "alert-info",
+          @kind == :success && "alert-success",
+          @kind == :error && "alert-error",
+          flash_corners(@shape)
+        ]}
+        style={@duration && "--flash-duration: #{@duration}ms"}
+      >
+        <svg
+          :if={@duration}
+          class={["flash-countdown", "flash-countdown-#{@shape}"]}
+          aria-hidden="true"
+        >
+          <rect pathLength="100" />
+        </svg>
+        <.icon :if={@kind == :info} name="hero-information-circle" class="size-5 shrink-0" />
+        <.icon :if={@kind == :success} name="hero-check-circle" class="size-5 shrink-0" />
+        <.icon :if={@kind == :error} name="hero-exclamation-circle" class="size-5 shrink-0" />
+        <div>
+          <p :if={@title} class="font-semibold">{@title}</p>
+          <p>{msg}</p>
+        </div>
+        <div class="flex-1" />
+        <button type="button" class="group self-start cursor-pointer" aria-label=<%= @close_label %>>
+          <.icon name="hero-x-mark" class="size-5 opacity-40 group-hover:opacity-70" />
+        </button>
+      </div>
+    </div>
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".Flash">
+      // Each message's little helper:
+      // - newest first: a message that appears, or gets new text, goes to the
+      //   top of the stack (flash_group), and the older ones move down. It's
+      //   set with LiveView's JS commands, so it survives page updates;
+      // - its countdown: when the line around the border runs out, it runs
+      //   what a click runs (its phx-click: clear the flash, hide it). The
+      //   countdown is a CSS animation, so hovering the message pauses it.
+      let newest = 0
+
+      export default {
+        mounted() {
+          this.text = this.message()
+          this.toTop()
+          this.el.addEventListener("animationend", (event) => {
+            if (event.animationName === "flash-countdown") {
+              this.js().exec(this.el.getAttribute("phx-click"))
+            }
+          })
+        },
+        // LiveView calls this after every page update, so act only when this
+        // message's own text changed: then it's a new message.
+        updated() {
+          const text = this.message()
+          if (text === this.text) return
+          this.text = text
+          this.toTop()
+          const line = this.el.querySelector(".flash-countdown rect")
+          if (!line) return
+          line.style.animation = "none"
+          void line.getBoundingClientRect()
+          line.style.animation = ""
+        },
+        message() {
+          return this.el.querySelector(".alert")?.textContent.trim()
+        },
+        toTop() {
+          newest += 1
+          this.js().setAttribute(this.el, "style", `order: ${-newest}`)
+        },
+      }
+    </script>
+    """
+  end
+
+  # Written out in full, so Tailwind finds the classes.
+  defp flash_corners("sharp"), do: "rounded-none"
+  defp flash_corners("pill"), do: "rounded-full px-6"
+  defp flash_corners(_rounded), do: nil
