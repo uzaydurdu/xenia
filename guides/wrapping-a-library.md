@@ -394,6 +394,45 @@ end
   If a page's co-located adapter is missing from the LiveSocket, Xenia says
   so in the browser console, naming the `<script>` and the import to check.
 
+### In a Surface app
+
+[Surface UI](https://surface-ui.org) templates (`~F`) call `<.xenia>` and
+your declared tags like any Phoenix function component: props, events,
+commands and the `<:loading>` and `<:error>` slots all work. A
+`use Surface.Component` module doesn't get your app's `html_helpers`, so add
+`import Xenia.Component` there.
+
+LiveView's colocated hooks only run in HEEx (`~H`), so `colocated/1` raises
+in a Surface module. Put the adapter in the component's own `.hooks.js`
+file instead, which Surface collects into `assets/js/_hooks`:
+
+```js
+// lib/my_app_web/components/clock.hooks.js
+import { adapterHook } from "xenia"
+
+export default adapterHook({
+  mount(el, props) { /* ... */ },
+  destroy(instance) { /* ... */ },
+})
+```
+
+Surface names the hook `"MyAppWeb.Components.Clock#default"`, so that's the
+adapter:
+
+```elixir
+~F"""
+<.xenia id={@id} adapter="MyAppWeb.Components.Clock#default" props={%{label: @label}} />
+"""
+```
+
+`app.js` spreads Surface's hooks next to Xenia's:
+`hooks: {...Hooks, ...colocatedHooks, ...createHooks({})}`, which
+`mix xenia.install` writes for you. A Surface LiveView can also be a page in
+the app folder (`use Xenia.Page`). On Phoenix 1.8, remove the `layout:`
+option that `mix surface.init` gives `surface_live_view`: Phoenix 1.8's
+`Layouts.app` takes its content as a slot, so LiveView can't use it as a
+layout.
+
 ## Things that save debugging time
 
 - **Name global resources by `ctx.id`.** Some libraries keep resources in a

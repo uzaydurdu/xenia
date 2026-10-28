@@ -32,6 +32,8 @@ defmodule Xenia.MixProject do
       # {:dep_from_hexpm, "~> 0.3.0"},
       # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"}
       {:lazy_html, ">= 0.1.0", only: :test},
+      # Islands rendered from Surface UI's ~F templates (test/xenia/core/surface_test.exs).
+      {:surface, "~> 0.12", only: :test},
       {:esbuild, "~> 0.10", only: :dev, runtime: false},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false},
       {:phoenix, "~> 1.8"},

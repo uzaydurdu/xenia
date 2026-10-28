@@ -262,6 +262,16 @@ defmodule Xenia.Component do
               "a co-located adapter name resolves to the module it is written in, " <>
                 "so #{inspect(name)} must be used inside a module"
 
+      surface_module?(module) ->
+        raise ArgumentError,
+              "#{inspect(name)} can't be co-located in #{inspect(module)}, a Surface module: " <>
+                "LiveView's ColocatedHook runs only in HEEx (~H), not in Surface's ~F. " <>
+                "Put the adapter in the component's .hooks.js file " <>
+                "(export default adapterHook({...}), from \"xenia\"), and write " <>
+                "adapter=\"#{inspect(module)}#default\". For a <script :type={ColocatedHook}> " <>
+                "in a ~H function of this module, write its full name: " <>
+                "adapter=\"#{inspect(module)}.#{local}\"."
+
       true ->
         "#{inspect(module)}.#{local}"
     end
@@ -278,6 +288,17 @@ defmodule Xenia.Component do
     raise ArgumentError,
           "colocated/1 expects a literal string like \".Chart\", got: " <>
             Macro.to_string(other)
+  end
+
+  # Surface components and LiveViews render through Surface.Renderer
+  # (verified with Surface 0.12). Read while the module compiles, as
+  # colocated/1 and `component ..., adapter: ".Chart"` both do.
+  defp surface_module?(module) do
+    Module.open?(module) and
+      module
+      |> Module.get_attribute(:before_compile)
+      |> List.wrap()
+      |> Enum.any?(&match?({Surface.Renderer, _}, &1))
   end
 
   # The call element: an empty, hidden hook (XeniaCall, built into
