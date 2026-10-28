@@ -1,5 +1,5 @@
 /**
- * Xenia's official adapter for Uppy (v4–v6): a file upload dashboard with drag and
+ * Xenia's official adapter for Uppy (v6): a file upload dashboard with drag and
  * drop, previews, restrictions and progress.
  *
  * Three transports, chosen with the `transport` prop:

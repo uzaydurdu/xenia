@@ -49,7 +49,7 @@ defmodule Xenia.Adapters.WaveSurfer do
 
   ## Reference
 
-    Xenia's official adapter for WaveSurfer.js (v7/v8): one audio file as an interactive
+    Xenia's official adapter for WaveSurfer.js (v7): one audio file as an interactive
     waveform, with regions, markers, timeline, minimap, hover and spectrogram.
     For several synchronized tracks and recording, see wavesurfer_multitrack.js.
 

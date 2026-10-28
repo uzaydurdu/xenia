@@ -37,7 +37,7 @@ defmodule Xenia.MixProject do
       {:esbuild, "~> 0.10", only: :dev, runtime: false},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false},
       {:phoenix, "~> 1.8"},
-      {:phoenix_live_view, "~> 1.1"},
+      {:phoenix_live_view, "~> 1.2"},
       # Xenia.Component encodes props as JSON at render time. Phoenix and
       # LiveView only list Jason as optional, so Xenia depends on it directly.
       {:jason, "~> 1.4"}

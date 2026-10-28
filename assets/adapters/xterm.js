@@ -1,5 +1,5 @@
 /**
- * Xenia's official adapter for xterm.js (v5/v6).
+ * Xenia's official adapter for xterm.js (v6).
  *
  * A terminal is a stream, not a value: its screen never travels as a prop.
  * Server output arrives as commands, user input leaves as events.
