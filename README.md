@@ -15,6 +15,7 @@ into Phoenix LiveView, and lets your folders define your pages.
 
 - [What you get](#what-you-get)
 - [Why Xenia](#why-xenia)
+- [When a plain hook is enough](#when-a-plain-hook-is-enough)
 - [How it works](#how-it-works)
 - [Start a new app](#start-a-new-app)
 - [Quickstart](#quickstart)
@@ -39,7 +40,7 @@ into Phoenix LiveView, and lets your folders define your pages.
 - Form fields, app-wide values (theme, locale), keyboard shortcuts, and loading
   and error states, without adapter code.
 
-**Pages from folders**
+**Pages from folders** (optional)
 - File-based routing: `page.ex` makes a route, `[id]` is a parameter.
 - Nested layouts, parts that stay alive between pages, and pages that share one
   LiveView.
@@ -61,6 +62,19 @@ The JavaScript community has an excellent library for almost anything a
 browser can do. With Xenia you use them without hand-writing a LiveView hook
 for each one: Monaco took a 58-line hook by hand, and is 21 lines as an adapter.
 
+## When a plain hook is enough
+
+You don't need Xenia for every piece of JavaScript. A plain `phx-hook` is fine
+when the library is simple to wire: a web component that only forwards an
+event, or a widget the server never changes after it starts.
+
+Xenia pays off when:
+- the server keeps updating the library;
+- it loads slowly;
+- it's a form field;
+- the server sends it commands;
+- you have several libraries to wire the same way.
+
 ## How it works
 
 ```
@@ -76,6 +90,8 @@ Xenia also handles cleanup on navigation, libraries that load slowly, and
 events sent just before the user leaves a page.
 
 ## Start a new app
+
+Xenia needs Elixir 1.15 or later, Phoenix 1.8 and LiveView 1.2.
 
 ```bash
 mix phx.new my_app && cd my_app
@@ -291,6 +307,7 @@ See [Wrapping a library](guides/wrapping-a-library.md).
 ## Pages from folders
 
 Optional: your folders define your routes, like the Next.js App Router.
+JavaScript islands work in any LiveView without it.
 
 ```elixir
 # lib/my_app_web/router.ex
@@ -341,6 +358,9 @@ mix xenia.gen.layout "(auth)" --persistent              # a layout.ex and persis
   esbuild config.
 - **Changes to a path dependency don't show up:** `mix deps.clean xenia --build`,
   then restart `mix phx.server`.
+- **Surface UI:** islands work in `~F` templates. For adapters next to a
+  component, use its `.hooks.js` file: see
+  [In a Surface app](guides/wrapping-a-library.md#in-a-surface-app).
 
 ## Examples and guides
 
@@ -369,7 +389,8 @@ mix check   # format, compile, bundles, tests, the Hex package and the docs
 ```
 
 Commit the rebuilt `priv/static` with your change; CI checks it matches the
-sources.
+sources. [CONTRIBUTING.md](https://github.com/uzaydurdu/xenia/blob/main/CONTRIBUTING.md) covers the browser tests and the
+rules for changes.
 
 ## Contact
 

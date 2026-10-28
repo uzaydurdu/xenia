@@ -39,7 +39,11 @@
  *   error   %{source, message, code}
  *
  * Form field: with field={@form[:starts_on]} the value is submitted with the
- * form; "multiple"/"range" submit a JSON list string.
+ * form; "multiple"/"range" submit a JSON list string, e.g.
+ * "[\"2026-11-01\",\"2026-11-07\"]", because the form value is one hidden
+ * input. An Ecto {:array, _} field can't cast that string: decode it first
+ * with Jason.decode/1 (not decode!, since the browser can send any string),
+ * and treat anything that isn't a list as empty.
  *
  * Import flatpickr's CSS once, e.g. in app.css:
  *   @import "../node_modules/flatpickr/dist/flatpickr.min.css";

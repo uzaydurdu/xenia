@@ -39,6 +39,12 @@ defmodule Xenia.Adapters.Monaco do
 
   **1. Install it:** `npm install monaco-editor@0.57.0 --save-exact --prefix assets`
 
+  Monaco 0.57.0 pins DOMPurify 3.4.15, which `npm audit` reports (GHSA-p98j-92pf-mc4p
+  and related advisories). DOMPurify 3.4.17 fixes them. Until a Monaco release
+  updates it, override it in `assets/package.json`, then run `npm install`:
+
+      "overrides": {"monaco-editor": {"dompurify": "3.4.17"}}
+
   **2. Create the adapter** in `assets/js/monaco.js`. Monaco finds its web
   workers with `new URL(..., import.meta.url)`, which esbuild doesn't
   bundle, so tell it where they are. The `import("monaco-editor")` is
