@@ -58,6 +58,11 @@ defmodule XeniaExamplesWeb.App.Examples do
         summary: "An adapter that lives inside the page that uses it."
       },
       %{
+        path: ~p"/two-editors",
+        title: "Two editors",
+        summary: "Two islands of one kind: each with its own events and commands."
+      },
+      %{
         path: ~p"/tabs/first",
         # Both tab pages count as this example in the sidebar.
         match: "/tabs/",
@@ -152,6 +157,13 @@ defmodule XeniaExamplesWeb.App.Examples do
         match: "/routing/",
         title: "File-based routing",
         summary: "Folders become URLs: parameters, catch-alls, groups and nested layouts."
+      },
+      %{
+        path: ~p"/scratchpad",
+        # Both scratchpad pages count as this example in the sidebar.
+        match: "/scratchpad",
+        title: "An editor that stays open",
+        summary: "A persistent part with a Monaco editor that survives page changes."
       }
     ]
   end

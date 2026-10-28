@@ -192,7 +192,10 @@ The layout's frame places it with `{@persistent}`. It keeps its process,
 its assigns and its JavaScript components, an editor's text and undo
 history included, while you navigate between pages under its layout. When a
 page outside the layout is shown, it goes away; coming back starts a fresh
-one.
+one. The examples app's "An editor that stays open"
+([`app/scratchpad`](https://github.com/uzaydurdu/xenia/tree/main/examples/lib/xenia_examples_web/app/scratchpad))
+is a persistent part with a Monaco editor, next to the app's own persistent
+sidebar.
 
 What to know:
 - **It needs a `layout.ex` in the same folder.** Without one, nothing would

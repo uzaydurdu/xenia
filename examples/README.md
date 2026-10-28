@@ -46,6 +46,7 @@ New to Xenia? Open these four, in order. Each takes a few minutes:
 | **Theme** | Islands that follow the app's light and dark mode. | [`app/theme`](lib/xenia_examples_web/app/theme) |
 | **Loading and errors** | What an island shows while it loads, and when it breaks: `<:loading>`, `<:error>`, `on_crash` and a retry. | [`app/loading`](lib/xenia_examples_web/app/loading) |
 | **Island in a page** | An adapter that lives inside the page that uses it. | [`app/colocated`](lib/xenia_examples_web/app/colocated) |
+| **Two editors** | Two islands of one kind on a page: each reports to its own event, and a command reaches only one. | [`app/two-editors`](lib/xenia_examples_web/app/two-editors) |
 | **Tabs** | Two pages that share one LiveView and its state. | [`app/tabs`](lib/xenia_examples_web/app/tabs) |
 
 **Pages from folders.** Routes and layouts come from folders, not from a
@@ -54,6 +55,7 @@ router file.
 | Example | What it shows | Code |
 |---|---|---|
 | **File-based routing** | Folders become URLs: a parameter (`[slug]`), a catch-all (`[...path]`), a group (`(company)`), a private folder (`_parts`) and nested layouts. Every page shows which file answers it. | [`app/routing`](lib/xenia_examples_web/app/routing) |
+| **An editor that stays open** | A layout's persistent part with a Monaco editor: the same editor, text and undo history across its pages. | [`app/scratchpad`](lib/xenia_examples_web/app/scratchpad) |
 
 **Icons, messages and languages.** Everyday Phoenix, with Phoenix's own
 tools: Tailwind, `put_flash/3` and Gettext.

@@ -57,7 +57,7 @@ const pixel = (page, selector, fx, fy) =>
 test("home lists every example, and the sidebar stays alive across pages", async () => {
   const { page, problems } = await open("/")
 
-  assert.equal(await page.locator(".examples li").count(), 29)
+  assert.equal(await page.locator(".examples li").count(), 31)
   assert.equal(await text(page, "#pages-seen"), "1")
   await mark(page, "#sidebar")
 

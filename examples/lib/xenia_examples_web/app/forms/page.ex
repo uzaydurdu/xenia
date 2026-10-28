@@ -142,10 +142,22 @@ defmodule XeniaExamplesWeb.App.FormsPage do
       {"Code", "#{length(String.split(String.trim(params["code"]), "\n"))} lines"},
       {"Body", strip_tags(params["body"])},
       {"Publish on", params["due"]},
-      {"Tags", params["tags"] |> Jason.decode!() |> Enum.join(", ")},
+      {"Tags", params["tags"] |> tags() |> Enum.join(", ")},
       {"Priority", "#{params["priority"]} of 5"}
     ]
   end
+
+  # Tom Select's `multiple` submits its list as one JSON string. The browser
+  # can send anything, so a value that isn't a JSON list of strings counts
+  # as no tags rather than crashing the page.
+  defp tags(json) when is_binary(json) do
+    case Jason.decode(json) do
+      {:ok, list} when is_list(list) -> Enum.filter(list, &is_binary/1)
+      _ -> []
+    end
+  end
+
+  defp tags(_), do: []
 
   defp blank?(value), do: String.trim(value || "") == ""
 

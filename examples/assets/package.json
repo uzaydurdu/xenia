@@ -2,7 +2,8 @@
   "name": "xenia-examples",
   "private": true,
   "scripts": {
-    "e2e": "node --test e2e/*.test.mjs"
+    "e2e": "node --test e2e/*.test.mjs",
+    "e2e:ci": "node --test --test-concurrency=1 e2e/*.test.mjs"
   },
   "dependencies": {
     "@fullcalendar/core": "6.1.22",
@@ -38,5 +39,10 @@
   },
   "devDependencies": {
     "playwright": "1.62.1"
+  },
+  "overrides": {
+    "monaco-editor": {
+      "dompurify": "3.4.17"
+    }
   }
 }
