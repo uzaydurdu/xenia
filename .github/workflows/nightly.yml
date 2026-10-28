@@ -1,0 +1,74 @@
+name: Nightly
+
+# Xenia's tests use pinned versions. This job runs them against the newest
+# releases its version ranges allow: LiveView and Phoenix (mix.exs), and each
+# official adapter's library (package.json). Unit tests use fake libraries,
+# so only the browser tests can see a library or LiveView release that
+# breaks an adapter. GitHub emails a failure to whoever last changed the
+# schedule.
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+jobs:
+  newest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "29"
+          elixir-version: "1.20.2"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      # Xenia's own tests on the newest LiveView and Phoenix in range.
+      - run: mix deps.get
+      - run: mix deps.update phoenix_live_view phoenix
+      - run: mix test
+
+      # The examples app, the same way, with the newest library releases.
+      - name: Newest LiveView, Phoenix and libraries for the examples app
+        working-directory: examples
+        run: |
+          mix deps.get
+          mix deps.update phoenix_live_view phoenix
+          npm ci --prefix assets
+          node assets/scripts/newest-libraries.mjs
+          mix assets.setup
+          mix assets.build
+
+      - name: Install Chromium for Playwright
+        working-directory: examples/assets
+        run: npx playwright install --with-deps chromium
+
+      - name: Start the examples app
+        working-directory: examples
+        run: |
+          PORT=4002 nohup mix phx.server > "$RUNNER_TEMP/server.log" 2>&1 &
+          for i in $(seq 1 180); do
+            curl -sf http://localhost:4002/ > /dev/null && exit 0
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/server.log"
+          exit 1
+
+      - name: Browser tests
+        working-directory: examples/assets
+        run: npm run e2e:ci
+        env:
+          E2E_URL: http://localhost:4002
+
+      - name: What was tested
+        if: always()
+        working-directory: examples/assets
+        run: npm ls --depth=0 && grep -E '"(phoenix|phoenix_live_view)"' ../mix.lock | cut -c1-80
+
+      - name: Server log
+        if: failure()
+        run: cat "$RUNNER_TEMP/server.log"

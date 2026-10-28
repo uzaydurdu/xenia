@@ -316,15 +316,25 @@ test("terminal: the server greets, echoes, and answers commands", async () => {
   const screen = () => page.evaluate(() => document.querySelector("#terminal .xterm-rows").innerText)
   await page.waitForFunction(() => /Welcome to Xenia/.test(document.querySelector("#terminal .xterm-rows")?.innerText ?? ""))
 
+  // xterm.js draws on the next animation frame, which can lag behind the
+  // server's reply on a slow machine (CI), so wait for the screen itself.
+  const waitScreen = (pattern) =>
+    page.waitForFunction(
+      (source) => new RegExp(source).test(document.querySelector("#terminal .xterm-rows").innerText),
+      pattern.source,
+    )
+
   await page.click("#terminal .xterm-screen")
   await page.keyboard.type("echo hello from the browser")
   await page.keyboard.press("Enter")
   await waitText(page, "#commands", /^Commands run: 1$/)
+  await waitScreen(/\nhello from the browser\n/)
   assert.match(await screen(), /\nhello from the browser\n/)
 
   await page.keyboard.type("help")
   await page.keyboard.press("Enter")
   await waitText(page, "#commands", /^Commands run: 2$/)
+  await waitScreen(/help, date, echo <text>, clear/)
   assert.match(await screen(), /help, date, echo <text>, clear/)
 
   assert.deepEqual(problems, [])

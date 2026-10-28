@@ -40,9 +40,80 @@ jobs:
       - name: Committed bundle matches the sources
         run: git diff --exit-code priv/static
 
+  # The oldest versions mix.exs allows: Elixir 1.15 (also the minimum of
+  # Phoenix 1.8 and LiveView 1.2) on OTP 26. Compile and test only: the
+  # formatter's output differs between Elixir versions, so `mix check` runs
+  # on the newest, above.
+  oldest:
+    runs-on: ubuntu-latest
+    env:
+      MIX_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "26.2.5"
+          elixir-version: "1.15.8"
+
+      - run: mix deps.get
+      - run: mix compile --warnings-as-errors
+      - run: mix test
+
+  # The examples app's browser tests (Playwright, Chromium) against its dev
+  # server: real libraries, LiveView navigation, focus, forms and the
+  # network, which unit tests with fake libraries can't see.
+  browser:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: examples
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "29"
+          elixir-version: "1.20.2"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - run: mix deps.get
+      - run: npm ci --prefix assets
+      - run: mix assets.setup
+      - run: mix assets.build
+
+      - name: Install Chromium for Playwright
+        working-directory: examples/assets
+        run: npx playwright install --with-deps chromium
+
+      - name: Start the examples app
+        run: |
+          PORT=4002 nohup mix phx.server > "$RUNNER_TEMP/server.log" 2>&1 &
+          for i in $(seq 1 180); do
+            curl -sf http://localhost:4002/ > /dev/null && exit 0
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/server.log"
+          exit 1
+
+      - name: Browser tests
+        working-directory: examples/assets
+        run: npm run e2e:ci
+        env:
+          E2E_URL: http://localhost:4002
+
+      - name: Server log
+        if: failure()
+        run: cat "$RUNNER_TEMP/server.log"
+
   # The examples app (examples/) against this checkout of Xenia: it must
   # stay formatted, compile without warnings, pass its tests, and build its
-  # JavaScript. Its browser tests run by hand before a release.
+  # JavaScript. Its browser tests run in the `browser` job above.
   examples:
     runs-on: ubuntu-latest
     defaults:
