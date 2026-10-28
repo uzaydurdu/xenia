@@ -13,10 +13,18 @@ and the contract is explicit. That is the architecture.
 the implementation so the API can be criticised cheaply.
 `docs/MENTOR_PROMPT.md` — session starter.
 
-**Current status (2026-10-24):** every milestone through M11 is complete,
-M8 is decided (a JS island, §2), and `examples/` holds a runnable examples
-app (§13). Next: the release (`docs/RELEASING.md`), when the author says so.
-The paragraphs below say what each milestone delivered.
+**Current status (2026-10-28):**
+- **Released:** Xenia 0.1.0 and 0.1.1 on Hex (2026-10-25), from the public
+  repository `github.com/uzaydurdu/xenia`.
+- **0.1.2:** complete and committed locally, waiting for the author's
+  push and Hex publish. It brings Surface UI support, installer fixes,
+  requirements that match what's tested, browser tests in CI, a nightly job
+  on the newest releases, and two examples.
+- **Next: 0.2.0.** The plan is in `docs/NEXT_RELEASE.md`, local only.
+
+Every milestone through M11 is complete, M8 is decided (a JS island, §2),
+and `examples/` holds a runnable examples app (§13). The paragraphs below
+say what each milestone delivered.
 
 **M5 complete** (one criterion, "written from the docs alone", moved
 to M7). The adapter contract and its rules are written (§4) and implemented in
@@ -53,10 +61,10 @@ Release milestone (see "Release policy" below):
 - **Release prep.** ExDoc (checked in `mix check`), `CHANGELOG.md`,
   `LICENSE`, and `docs/RELEASING.md`.
 
-**Release policy (the author's decision, 2026-10-24).** Nothing is published
-and nobody else gets access to the repository until the whole implementation
-(M8–M11) is done. Then: Hex, plus one Elixir Forum post. Don't propose an
-early release, a public repository or a private test user before then.
+**Release policy (the author's decision, 2026-10-24; carried out
+2026-10-25).** Nothing was published until M8–M11 were done; then Hex,
+plus one Elixir Forum post. Since then, a release still needs the author's
+approval, and the author pushes and publishes.
 
 S1 is done (§9).
 
@@ -81,8 +89,7 @@ adapter (a working placeholder) and its typed tag, or prints a co-located
 version with `--colocated`. `mix xenia.gen.page` and `mix xenia.gen.layout`
 (`--persistent`, `--on-mount`) write app-folder files. Generated files
 compile without warnings and pass the demo's `mix format`, including the
-HEEx formatter (§6 M11 findings). Next: the M8 decision, then Release
-(`docs/ROADMAP.md`).
+HEEx formatter (§6 M11 findings).
 
 **Official adapters: all stages done (2026-10-25).** After reviewing
 Stage 1 (Chart.js), the author asked for the other fourteen at once. Each
@@ -1232,9 +1239,10 @@ callback, which would send a `phx-change` for a change the server asked for,
 so the guide uses `clear(false)`. Any library whose programmatic setters
 fire user-change callbacks has the same trap.
 
-**The GitHub repository returns 404** for anonymous visitors (private or
+**The GitHub repository returned 404** for anonymous visitors (private or
 not pushed). The Hex package links to it, and so does every docs "View
-source" link. It has to be public before publishing (`docs/RELEASING.md`).
+source" link. **Resolved 2026-10-25:** the public repository went up before
+0.1.0 was published.
 
 ### M9 findings — generated routes (verified 2026-10-24)
 
@@ -1639,6 +1647,100 @@ and shortcut cases in the component tests. Browser:
 - **Focus scoping holds.** With focus on a button outside the editor, the
   same keys didn't change the font size.
 
+### Lifecycle browser tests, public (verified 2026-10-28)
+
+`examples/assets/e2e/lifecycle.test.mjs` has 6 tests, on two new example
+pages: `/two-editors`, and `/scratchpad` with `/scratchpad/second` (a
+layout's persistent part holding Monaco). They bring the private demo's
+strongest lifecycle checks into public CI:
+- **an edit typed just before leaving is pushed while connected**
+  (`a_changed connected=true`, recorded through `liveSocket.execJS`);
+- **rapid navigation** leaves exactly two working editors and no errors;
+- **two editors:** a command and the change events stay with their own
+  island;
+- **a persistent part keeps its editor:** the same process, instance,
+  text and undo history, and a fresh one after leaving;
+- **leaving `/loading` while its islands load,** with
+  `enableLatencySim(500)`: nothing drawn later, no `on_crash`, no errors;
+- **no leaks across 50 navigations** between `/two-editors` and `/chart`.
+
+Results: 50/50 on macOS (in parallel), and 50/50 in Linux Chromium,
+one file at a time as CI runs them. The heap went from 64.1 MB after 10
+navigations to +3.4 MB over the next 40 (+3.3 MB in Linux).
+
+**Mutation checks, so the tests are known to catch the faults:**
+- With the navigation-start flush turned off (`controller.js`), the first
+  test fails: the edit is never pushed (`[]`).
+- With Monaco's `editor.dispose()` removed, the leak test fails at
+  navigation 2 (4 editors instead of 2).
+
+**Monaco's model count isn't a leak signal when ids are stable.** With
+`entry.model.dispose()` removed, the test still passed, because the next
+mount with the same `ctx.id` reuses the existing model (the "reuse if it
+exists" rule, §6). `monaco.editor.getEditors()` is the signal: Monaco
+keeps every editor that wasn't disposed.
+
+### Surface UI findings (verified 2026-10-27)
+
+**Setup.** A fresh `mix phx.new` app (Phoenix 1.8.9, LiveView 1.2.13,
+Elixir 1.20.2), then:
+- Surface 0.12.3 with `mix surface.init --demo`;
+- then Xenia 0.1.1 from Hex with `mix xenia.install`.
+
+Four Playwright tests ran in that throwaway app. Kept in the repository:
+`test/xenia/core/surface_test.exs`, with Surface as a test-only
+dependency.
+
+**Works with no change:**
+- `<.xenia>` and declared tags called from `~F`: props, events, commands,
+  and the `<:loading>`/`<:error>` slots.
+- An island inside a `use Surface.Component`. It needs
+  `import Xenia.Component`, because Surface components don't get the app's
+  `html_helpers`.
+- `use Xenia.Page` on a Surface LiveView: the frame, the metadata title,
+  and the island all work.
+- Navigation cleanup: the island is destroyed once, on the same page load.
+- `--warnings-as-errors`, and `mix format` with `Surface.Formatter.Plugin`
+  next to `import_deps: [:xenia]`.
+
+**Co-location in Surface is Surface's `.hooks.js`, not LiveView's
+ColocatedHook.**
+- LiveView's ColocatedHook is a HEEx macro component. In `~F`, Surface
+  renders the `<script :type=...>` into the page literally, which ships the
+  adapter's source to the browser, and the hook is never registered.
+- Instead, `export default adapterHook({...})` from the component's
+  `.hooks.js`. Surface names the hook `"Module#export"` (its `ns()` in
+  `_hooks/index.js`), and `<.xenia adapter="Module#default">` accepts it:
+  `validate_adapter!` takes any non-empty string.
+- `colocated/1` (and `adapter: ".Name"` in the DSL) now raises in a Surface
+  module, pointing at that.
+
+**How a Surface module is detected:** `{Surface.Renderer,
+:__before_compile__}` in its `@before_compile`, read while it compiles.
+A probe found it in `Surface.Component` and `Surface.LiveView`, and not in
+a HEEx module that does `import Surface`, which `surface.init` adds to
+`:html`. `Macro.Env.lookup_import` of `sigil_F` would give false positives
+for exactly that reason.
+
+**Found on the way, true for every fresh app:** `mix xenia.install` left
+Phoenix's `page_controller_test.exs` asserting Phoenix's home page text,
+so the first `mix test` failed. The installer now rewrites that assertion
+(`home_test/1`). It also matches any one-line `hooks: {…}` that spreads
+`...colocatedHooks`, as Surface's `{...Hooks, ...colocatedHooks}` does, and
+its "by hand" message prints the whole snippet, theme publisher included.
+
+**Not Xenia's: Surface 0.12.3 on Phoenix 1.8.**
+- `surface.init` skips its `app.js` hooks patch and both `config/dev.exs`
+  patches, and looks for a `tailwind.config.js`.
+- `surface.init` gives `surface_live_view` the option
+  `layout: {Layouts, :app}`. Phoenix 1.8's `Layouts.app` requires an
+  `inner_block` slot, so every Surface LiveView, `/demo` included, raises
+  `KeyError :inner_block`. The fix is to drop the option.
+- The `--demo` card uses `text-brand`, which Tailwind rejects on Phoenix
+  1.8.
+- Surface's mix task gives type warnings on Elixir 1.20. They're in a
+  dependency, so they don't fail an app's `--warnings-as-errors`.
+
 ### Subtraction study — completed
 
 Three hooks hand-written to the same standard, every line annotated as
@@ -2013,10 +2115,31 @@ Chart.js three ways side by side on `/chart-compare`.
 - Adapters routinely need to bypass the core to do ordinary things
 - Using an unsupported npm library is meaningfully harder than a first-party one
 - Docs explaining Xenia exceed docs explaining `phx-hook`
-- Six months in, nobody outside the author has adopted it (the clock starts
-  at Release: by the author's decision, nobody outside sees Xenia before then)
+- Six months in, nobody outside the author has adopted it (the clock started
+  at the release, 2026-10-25, so it's due on 2027-04-25)
 
 Write the answer down when each triggers. Do not renegotiate silently.
+
+**Docs answer (2026-10-27, the author).** Read literally, "docs
+explaining Xenia exceed docs explaining `phx-hook`" is met: the README
+and the four guides are 1,770 lines. But they also cover the app folder,
+forms, providers and 16 adapters, which hooks don't have. The comparison
+the author chose is what a newcomer reads to wrap one library. Measured
+2026-10-27, counting non-blank lines and the prose words outside code
+blocks:
+
+| Reading path | Lines | Prose words |
+|---|---|---|
+| LiveView 1.2.12 `guides/client/js-interop.md`: "Client hooks via `phx-hook`" + "Client-server communication" | 211 | 1,180 |
+| `guides/wrapping-a-library.md`, sections 1–8 (deciding what goes where, through declaring a tag) | 180 | 1,089 |
+
+So the condition isn't met for a first adapter, but the margin is small
+(about 8% fewer words). From now on:
+- that path must stay shorter than LiveView's hook docs;
+- re-measure whenever either changes;
+- if Xenia's gets longer, write a one-page "your first island" guide.
+
+The README says when a plain hook is enough.
 
 ---
 
@@ -2046,10 +2169,10 @@ Write the answer down when each triggers. Do not renegotiate silently.
 | `adapterHook` | Exported from `"xenia"`; `createHooks` builds its hooks with it | M10. One Controller for both ways of registering |
 | Official adapters | A factory per library from its own entry point (`createChartjs` from `"xenia/chartjs"`, like `createMonaco` from `"xenia/monaco"`); the app passes the library with `load: () => import(...)`, or an object of named parts for libraries made of several packages (Tiptap, FullCalendar, Uppy, xterm, wavesurfer); factory options configure it (library plugins, default options, `setup`, D3's `charts`); the factory returns a plain adapter object, extended by spreading; an Elixir tag per adapter (`<.chartjs>`, `<.tiptap>`, ...); the theme through `consumes`. Sixteen ship: Monaco, Monaco diff, Tiptap, Chart.js, D3, Tabulator, FullCalendar, Leaflet, xterm, flatpickr, Tom Select, Shoelace rating, SortableJS, Uppy, wavesurfer, wavesurfer multitrack | The author, 2026-10-24/25. Stage 1 (Chart.js) was reviewed first; then the author asked for all fourteen others at once (2026-10-25), replacing the staged plan and the "experimental" status of Uppy, the wavesurfers and D3. Gates per adapter, all met: tests with no library installed, a browser test in `examples/`, the standalone-bundle check, docs in the tag module. Entry points live in the core package: decided for 0.1.0 by the author (2026-10-25), because moving them later would change users' imports. All MIT; no paid adapters |
 | Keyboard shortcuts | `shortcuts` on every component: key combination → LiveView event, only while focus is inside, browser shortcuts refused, server events only, pending events flushed first | The author, 2026-10-24 (§4 Keyboard shortcuts). Plain `handle_event`, not a `handle_key_event`: nothing new to learn. Instant client-side shortcuts (mapping to an adapter command) can come later |
-| Examples | `examples/`: a runnable Phoenix app in the repository, built with the app folder, one page per feature (chart, form field, web component, theme, co-located adapter, `live.ex` tabs), one page per official adapter under `adapters/`, a form with five official adapters as fields under `forms/`, and a file-based routing example under `routing/` that uses every kind of folder (parameter, catch-all, group, private folder, nested layouts) and shows which file answers each URL, each with a plain-English README; depends on `{:xenia, path: ".."}` and links `"xenia": "file:../.."` in its `package.json` | The author's choice over copy-paste folders (2026-10-24): `xenia_demo` is private, so this is the only runnable showcase users see. The npm link resolves `"xenia"` whatever the checkout's folder is called |
+| Examples | `examples/`: a runnable Phoenix app in the repository, built with the app folder, one page per feature (chart, form field, web component, theme, co-located adapter, `live.ex` tabs, two editors, an editor that stays open in a persistent part), one page per official adapter under `adapters/`, a form with five official adapters as fields under `forms/`, and a file-based routing example under `routing/` that uses every kind of folder (parameter, catch-all, group, private folder, nested layouts) and shows which file answers each URL, each with a plain-English README; depends on `{:xenia, path: ".."}` and links `"xenia": "file:../.."` in its `package.json` | The author's choice over copy-paste folders (2026-10-24): `xenia_demo` is private, so this is the only runnable showcase users see. The npm link resolves `"xenia"` whatever the checkout's folder is called |
 | Starter template | `mix xenia.install` edits a new Phoenix 1.8 app in place (since 2026-10-25 also `flash/1` in `core_components.ex` and `flash_group/1` in `layouts.ex`: a success kind, stacked, auto-closing with a countdown, replaced only when byte-for-byte what Phoenix 1.8 generates, with or without Gettext; since the metadata work also `root.html.heex`: `<Xenia.Metadata.tags>`, and `<.live_title>` without Phoenix's suffix; the layout and home page use `metadata/1`): Xenia's daisyUI themes (plain, purple primary, gold accent, `--depth: 0`, 1px borders) and a `.xenia-grid` pattern in `app.css`; `createHooks` and the theme provider in `app.js`; `import Xenia.Component`; `:xenia` in `import_deps`; `xenia_routes` in place of the `PageController` home route; a `layout.ex` and home `page.ex` from `priv/templates/xenia.install/`; the logo. Each step is skipped when already done, and left to the user ("by hand") when the file doesn't look like Phoenix's | The author, 2026-10-25, over forking Phoenix's generator (`mix phx.new` templates would have to follow every Phoenix release). Plain and Next.js-like, not fancy. The examples app uses the same theme |
 | Logo | Transparent PNGs cut from the brand showcase's hero: `xenia-banner-light.png` (dark name, for light pages) and `xenia-banner-dark.png` (white name), a wide banner across the README's full width through `<picture>` and `prefers-color-scheme`; `xenia-mark.png` (the mark alone, square) for the HexDocs sidebar (`logo:`) and the examples header | 2026-10-24, the author: no background, full width. The source's soft glow around the name is trimmed, or it shows as a grey haze on light pages. The showcase lives in `docs/brand/` (local only), because everything in `priv` ships in the Hex package |
-| README | Compact (about 380 lines): banner, motto, a one-line intro, a contents list, then short sections with links to the guides for depth. Plain headings, so the contents links work on GitHub, HexDocs and hex.pm. Monaco's full setup lives in `Xenia.Adapters.Monaco`'s docs. Banner: two images marked `#gh-light-mode-only` / `#gh-dark-mode-only` (hex.pm turns them into its `color-scheme-*` classes; HexDocs uses a CSS rule from `before_closing_head_tag`) | The author, 2026-10-26: "clear, precise and compact", no pronunciation. Claims stay verifiable: the one number is the measured Monaco integration (§6, 58 → 21 lines) |
+| README | Compact (about 400 lines): banner, motto, a one-line intro, a contents list, then short sections with links to the guides for depth. Since 2026-10-27 it has "When a plain hook is enough" (§10 docs answer), and it marks pages from folders as optional. Plain headings, so the contents links work on GitHub, HexDocs and hex.pm. Monaco's full setup lives in `Xenia.Adapters.Monaco`'s docs. Banner: two images marked `#gh-light-mode-only` / `#gh-dark-mode-only` (hex.pm turns them into its `color-scheme-*` classes; HexDocs uses a CSS rule from `before_closing_head_tag`) | The author, 2026-10-26: "clear, precise and compact", no pronunciation. Claims stay verifiable: the one number is the measured Monaco integration (§6, 58 → 21 lines) |
 | Generators | `mix xenia.gen.component`, `mix xenia.gen.page`, `mix xenia.gen.layout`; module names mirror folders; existing files need `--force`; co-located output is printed, never inserted into a module | M11, the author's call to include page and layout generators. The component's adapter is a working placeholder, so the tag works before the library is wired in |
 | Declaration DSL | `use Xenia.Components` with `component`/`prop`/`event`, generating ordinary Phoenix function components | M4. Kept after measuring (`docs/ROADMAP.md` M4). Apps add `import_deps: [:xenia]` to `.formatter.exs` |
 | Event attributes | `event :click` becomes `attr :on_click`; unbound events are omitted | Phoenix's `on_*` convention. M4 |
@@ -2058,9 +2181,13 @@ Write the answer down when each triggers. Do not renegotiate silently.
 | JS import | `import { createHooks } from "xenia"`, through `package.json` `exports` | M5. Hex deps resolve through `deps/xenia` with Phoenix's default `NODE_PATH`; a path dep needs its parent directory on `NODE_PATH` (see `xenia_demo/config/config.exs`). `mix check` verifies every exports target is in the Hex package |
 | JS entry points | `"xenia"` is the core only; each Tier 2 adapter has its own entry point (`"xenia/monaco"`, a separate bundle); the app passes the library import (`createMonaco({ load: () => import("monaco-editor") })`) | M7. A library import inside Xenia's bundles broke every app's build (§6 M7 findings). `mix check` bundles each file on its own |
 | User docs | `README.md` plus two guides in `guides/`, published with ExDoc (`main: "readme"`) and shipped in the package; `mix check` builds them with `--warnings-as-errors` | M7. `CLAUDE.md` is internal; the guides are the user-facing contract |
-| Release timing | One release when M8–M11 are done: Hex plus one forum post. The repository stays private until then; no outside users before | The author, 2026-10-24. Supersedes M7's "publish" and "first external user" tasks |
+| Release timing | One release when M8–M11 were done: Hex plus one forum post (done 2026-10-25: 0.1.0, then 0.1.1). Every later release needs the author's approval; the author pushes and publishes | The author, 2026-10-24. Supersedes M7's "publish" and "first external user" tasks |
 | Public history | A fresh one-commit public repository `uzaydurdu/xenia`, committed with GitHub's private email address; the full history stays in a renamed private repository (`xenia-private`) | The author, 2026-10-25: keeps `docs/` and the personal email out of public history without rewriting it. Public contact is uzaydurdu.com (README, `SECURITY.md`, Hex links) |
 | App folder | Folders define routes and layouts; `xenia_routes` generates plain `live` routes; no `parent:` or `layout:` | M9, the author's call: discovery made explicit declarations redundant |
+| App folder status | Not labelled experimental. The README marks it optional, and says JavaScript islands work in any LiveView without it | The author, 2026-10-27, after an outside critique. Labelling it would undercut the "new way to write Phoenix apps" choice (§2), and 0.x already allows API changes. The real risk is that it relies on LiveView behaviour that isn't promised (`__changed__`, sticky LiveViews); a planned nightly CI job against the newest LiveView covers it |
+| Supported versions | Elixir `~> 1.15`, Phoenix `~> 1.8`, LiveView `~> 1.2`. CI runs `mix check` on the newest (Elixir 1.20.2, OTP 29), and compiles and tests on the oldest (Elixir 1.15.8, OTP 26.2.5) | 2026-10-27. The Elixir floor is every dependency's own minimum, and the suite passed there first in Docker (`hexpm/elixir:1.15.8-erlang-26.2.5.21`, 320 tests). LiveView was narrowed from `~> 1.1`, never tested on 1.1 |
+| Surface UI | Supported. Islands and declared tags work in `~F`. Co-location goes through Surface's `.hooks.js` (`adapterHook`, `adapter="Module#default"`). `colocated/1` raises in a Surface module. `mix xenia.install` recognizes Surface's `app.js`. Surface is a test-only dependency (`test/xenia/core/surface_test.exs`) | The author, 2026-10-27, after the spike (§6 "Surface UI findings"). No new API: a Surface hook name is just an adapter string |
+| Official adapters' status | All 16 are stable; no "experimental" or support-level labels | The author, 2026-10-27, after an outside critique; confirms 2026-10-25. Don't propose support levels again. Stable means every declared peer version range is tested: a library's new major joins its range in `package.json` only after its browser test passes on it. Narrowed 2026-10-27 to the tested majors (Uppy `^6`, xterm `^6`, wavesurfer `^7`) |
 | Page | A LiveView with `use Xenia.Page`; its render is wrapped in its layouts' frames | M9. Phoenix checks every route's LiveView at compile time, so the page stays a real LiveView |
 | Layout | `frame/1` with `@inner_content` and `@persistent`; one option, `on_mount:` | M9. `@inner_content` as in Phoenix's layouts, because Xenia calls frames, not HEEx tags |
 | Persistent part | A sticky LiveView per layout, rendered by the page side by side; `handle_navigation/2` from `phx:navigate` | M9, from S1's limits |
@@ -2077,7 +2204,8 @@ Write the answer down when each triggers. Do not renegotiate silently.
 | Source layout | `lib/xenia/core/`, `lib/xenia/app/`, `lib/xenia/adapters/` (tests mirror it under `test/xenia/`). Adapters are namespaced `Xenia.Adapters.*`; core and app-folder modules keep their short names (`Xenia.Component`, `Xenia.Page`) | The author, 2026-10-25, before the first release, so the rename was free. A deliberate exception to "path mirrors module name" for `core/` and `app/`: users type those names constantly. Mirrors `assets/core/` and `assets/adapters/`. The docs sidebar uses the same groups |
 | Event transport | `liveSocket.execJS` with a `push` command, from a hidden core-owned element | M5. Avoids LiveView's lock on the container (§4 Events, §6) |
 | Custom elements | Supported as ordinary adapters; Xenia is not a conformance layer | M5, §10 |
-| CI | GitHub Actions runs `mix check` and checks the committed bundle matches the sources | M5. Browser tests still run by hand against a dev server |
+| Nightly CI | `.github/workflows/nightly.yml`, daily at 04:17 UTC (and by hand): Xenia's tests and the examples' browser tests on the newest releases in range: LiveView and Phoenix (`mix deps.update`), and each library (`examples/assets/scripts/newest-libraries.mjs`: `^<pinned>`, so the newest within the pinned major). GitHub emails a failure to whoever last changed the schedule | 2026-10-27. Fake libraries in the unit tests can't catch a library's API change, so this does. Rehearsed: 320 tests on Phoenix 1.8.16 / LiveView 1.2.13, and 44/44 browser tests in Linux Chromium with Chart.js 4.6.1 (the only library with a newer release in range that day; the suite has 50 since 2026-10-28) |
+| CI | GitHub Actions (`.github/workflows/ci.yml`) has four jobs: `check` (`mix check` on the newest Elixir/OTP, plus the committed bundle matching the sources), `oldest` (compile and test on Elixir 1.15.8 / OTP 26.2.5), `browser` (the examples app's Playwright tests, 50 since 2026-10-28, against its dev server, `npm run e2e:ci`), and `examples` (format, compile, test, build) | M5; the browser and oldest jobs since 2026-10-27. Before pushing, the browser job was rehearsed on a clean copy: 44/44 on macOS, and 44/44 in Linux Chromium (`mcr.microsoft.com/playwright:v1.62.1-noble`). Linux needed two changes: the terminal test now waits for xterm's screen (it draws on the next animation frame), and CI runs the test files one at a time (`--test-concurrency=1`), because the multitrack test timed out under the parallel load |
 | Form participation | A server-rendered input inside the container, filled by the adapter through `ctx.setFormValue`: loud for the user's changes, quiet (`notify: false`) for the server's | M5.5. No form system: submit, `phx-change` and recovery are LiveView's (§4 Form fields) |
 | Form field API | `field={@form[:x]}` on `<.xenia>` and `<.monaco>`; `form_value: :prop` on a declaration. The field supplies id, name and value, and its value wins over the prop | M5.5. Phoenix's own `field` convention |
 | Form echoes | Adapter-owned (§6: echo suppression never in the core). Monaco keeps pending echoes; a custom element whose events fire only for user input needs none | M5.5 |
@@ -2163,7 +2291,8 @@ Write the answer down when each triggers. Do not renegotiate silently.
 xenia/
   CLAUDE.md             <- this file, repo root
   README.md             # user-facing; the HexDocs landing page
-  CHANGELOG.md  LICENSE
+  CHANGELOG.md  LICENSE  SECURITY.md
+  CONTRIBUTING.md       # for outside contributors: setup, browser tests, the rules
   guides/               # user-facing contract (HexDocs extras, in the package)
     wrapping-a-library.md
     ownership-boundary.md
@@ -2204,9 +2333,11 @@ xenia/
 rest go in `docs/`. None are in `files:` in `mix.exs`, so they stay out of
 the Hex package. **Since 2026-10-24 the `docs/` working documents are
 local only** (the author's decision): `.gitignore` lists them, and they were
-untracked with `git rm --cached`. They are still in the history already on
-`origin`, so that history must not become public as it is (see the release
-plan in `docs/RELEASING.md`).
+untracked with `git rm --cached`. The old history that still contains
+them stays in the private `xenia-private` repository. The public repository
+is a fresh history (2026-10-25), so they were never public. `CLAUDE.md`
+itself stays public (decided 2026-10-28): code comments in `lib/` and
+`assets/` cite its sections.
 
 Since M7, users read `README.md` and `guides/`, which are in the package and
 on HexDocs. `CLAUDE.md` stays the internal source of truth. When a rule in
@@ -2228,8 +2359,8 @@ xenia_demo/             # mix phx.new, depends on {:xenia, path: "../xenia"}
 - **`examples/` is the public showcase; `xenia_demo` is the private test
   bed.** A user-facing feature gets a page in `examples/`, with a short
   README in plain English next to its code, and a browser test in
-  `examples/assets/e2e/`. CI compiles and builds the examples; their browser
-  tests run before a release.
+  `examples/assets/e2e/`. CI compiles, builds and browser-tests the
+  examples (the `browser` job).
 - **At least one demo uses a library with no first-party adapter**, to keep
   Tier 1 honest. Since M4: Chart.js (`xenia_demo/assets/js/chart_adapter.js`,
   `/chart`)
