@@ -29,6 +29,8 @@ defmodule Mix.Tasks.Xenia.Install do
     * `.formatter.exs`: `:xenia` in `import_deps`
     * `lib/my_app_web/router.ex`: the home route replaced by
       `xenia_routes "lib/my_app_web/app"`, inside a `live_session`
+    * `test/my_app_web/controllers/page_controller_test.exs`: checks the new
+      home page instead of Phoenix's, so `mix test` keeps passing
     * `lib/my_app_web/app/`: a `layout.ex` (header, theme toggle, footer)
       and a home `page.ex`
     * `priv/static/images/xenia-mark.png`: the logo the layout shows
@@ -72,6 +74,7 @@ defmodule Mix.Tasks.Xenia.Install do
       root_layout(context),
       formatter(context),
       router(context),
+      home_test(context),
       app_folder(context),
       logo(context)
     ]
@@ -134,6 +137,11 @@ defmodule Mix.Tasks.Xenia.Install do
     end)
   end
 
+  # The LiveSocket's hooks object on one line, as long as it spreads
+  # Phoenix's colocatedHooks: `{...colocatedHooks}` as Phoenix generates it,
+  # or `{...Hooks, ...colocatedHooks}` after Surface's setup.
+  @hooks_object ~r/hooks: \{([^{}\n]*\.\.\.colocatedHooks[^{}\n]*)\},/
+
   @doc false
   def javascript(%{}) do
     path = "assets/js/app.js"
@@ -144,10 +152,11 @@ defmodule Mix.Tasks.Xenia.Install do
           {:skipped, "#{path}: already imports Xenia"}
 
         not (String.contains?(source, ~s(import topbar from "../vendor/topbar")) and
-                 String.contains?(source, "hooks: {...colocatedHooks},")) ->
+                 Regex.match?(@hooks_object, source)) ->
           {:manual,
-           "#{path}: add `import {createHooks} from \"xenia\"` and spread " <>
-             "`...createHooks({})` into the LiveSocket's hooks"}
+           "#{path}: add these lines after the imports, and spread " <>
+             "`...createHooks({})` into the LiveSocket's hooks:\n\n" <>
+             String.replace(javascript_setup(), ~r/^(?=.)/m, "    ")}
 
         true ->
           source =
@@ -157,11 +166,14 @@ defmodule Mix.Tasks.Xenia.Install do
               ~s(import topbar from "../vendor/topbar") <> "\n" <> javascript_setup(),
               global: false
             )
-            |> String.replace(
-              "hooks: {...colocatedHooks},",
-              "// Register your adapters here, e.g. createHooks({Chart: chart})\n" <>
-                "  hooks: {...colocatedHooks, ...createHooks({})},",
-              global: false
+            |> then(
+              &Regex.replace(
+                @hooks_object,
+                &1,
+                "// Register your adapters here, e.g. createHooks({Chart: chart})\n" <>
+                  "  hooks: {\\1, ...createHooks({})},",
+                global: false
+              )
             )
 
           {:write, source, "#{path}: Xenia's hooks, and the theme for components that follow it"}
@@ -369,6 +381,33 @@ defmodule Mix.Tasks.Xenia.Install do
           {:write, source, "#{path}: routes from #{folder}, in place of PageController's home"}
       end
     end)
+  end
+
+  @doc false
+  # Phoenix's test of its home page fails once `/` is the app folder's home
+  # page, so it checks the app's name there instead.
+  def home_test(%{web: web, app_title: title}) do
+    path = Path.join(["test", Path.basename(web.path), "controllers", "page_controller_test.exs"])
+
+    phoenix =
+      ~s|    assert html_response(conn, 200) =~ "Peace of mind from prototype to production"\n|
+
+    if File.exists?(path) do
+      with_file(path, fn source ->
+        if String.contains?(source, phoenix) do
+          new =
+            "    # The app folder's home page (mix xenia.install).\n" <>
+              "    assert html_response(conn, 200) =~ #{inspect(title)}\n"
+
+          {:write, String.replace(source, phoenix, new, global: false),
+           "#{path}: checks the app folder's home page"}
+        else
+          {:skipped, "#{path}: doesn't check Phoenix's home page"}
+        end
+      end)
+    else
+      {:skipped, "#{path}: not there"}
+    end
   end
 
   @doc false

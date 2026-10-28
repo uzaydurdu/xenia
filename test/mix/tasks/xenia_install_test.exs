@@ -100,6 +100,12 @@ defmodule Mix.Tasks.Xenia.InstallTest do
     assert router =~ ~s(xenia_routes "lib/pristine_web/app")
     refute router =~ ~s(get "/", PageController, :home)
 
+    # Phoenix's test of its home page checks the new one, so `mix test` passes.
+    home_test = File.read!("test/pristine_web/controllers/page_controller_test.exs")
+    assert home_test =~ ~s|    assert html_response(conn, 200) =~ "Xenia"\n|
+    refute home_test =~ "Peace of mind"
+    assert Code.string_to_quoted!(home_test)
+
     layout = File.read!("lib/pristine_web/app/layout.ex")
     assert layout =~ "defmodule PristineWeb.App.RootLayout do"
     assert layout =~ ~s(<div class="xenia-grid)
@@ -157,7 +163,59 @@ defmodule Mix.Tasks.Xenia.InstallTest do
 
     refute printed =~ "* updating"
     refute printed =~ "* creating"
-    assert length(Regex.scan(~r/\* skipping/, printed)) == 11
+    assert length(Regex.scan(~r/\* skipping/, printed)) == 12
+  end
+
+  test "an app set up with Surface: Xenia's hooks join Surface's" do
+    surface = Path.expand("../../fixtures/surface_0_12", __DIR__)
+    File.cp!(Path.join(surface, "assets/js/app.js.txt"), "assets/js/app.js")
+
+    Mix.Tasks.Xenia.Install.run(@args)
+    printed = output()
+
+    js = File.read!("assets/js/app.js")
+    assert js =~ "hooks: {...Hooks, ...colocatedHooks, ...createHooks({})},"
+    assert js =~ ~s(import Hooks from "./_hooks")
+    assert js =~ ~s(import {createHooks, setProvider} from "xenia")
+    assert js =~ ~s{setProvider("theme", document.documentElement.dataset.theme ?? "light")}
+    refute printed =~ "by hand"
+    assert_valid_js(js)
+
+    Mix.Tasks.Xenia.Install.run(@args)
+    assert output() =~ "* skipping assets/js/app.js: already imports Xenia"
+    assert File.read!("assets/js/app.js") == js
+  end
+
+  test "a file the installer doesn't know prints the whole JavaScript setup to add" do
+    File.write!("assets/js/app.js", "// my own setup\n")
+
+    Mix.Tasks.Xenia.Install.run(@args)
+    printed = output()
+
+    assert printed =~ "by hand  assets/js/app.js: add these lines after the imports"
+    assert printed =~ ~s(    import {createHooks, setProvider} from "xenia")
+    assert printed =~ ~s{    new MutationObserver(publishTheme)}
+  end
+
+  test "a home page test the app changed is left alone" do
+    path = "test/pristine_web/controllers/page_controller_test.exs"
+    File.write!(path, "defmodule PristineWeb.PageControllerTest do\nend\n")
+
+    Mix.Tasks.Xenia.Install.run(@args)
+    printed = output()
+
+    assert File.read!(path) == "defmodule PristineWeb.PageControllerTest do\nend\n"
+    assert printed =~ "* skipping #{path}: doesn't check Phoenix's home page"
+  end
+
+  # Node parses `source` as an ES module, without running it or resolving
+  # its imports.
+  defp assert_valid_js(source) do
+    if node = System.find_executable("node") do
+      file = Path.join(File.cwd!(), "check-#{System.unique_integer([:positive])}.mjs")
+      File.write!(file, source)
+      assert {_, 0} = System.cmd(node, ["--check", file], stderr_to_stdout: true)
+    end
   end
 
   test "a file that doesn't look like Phoenix's is left alone, with the step to do by hand" do
@@ -168,7 +226,7 @@ defmodule Mix.Tasks.Xenia.InstallTest do
     printed = output()
 
     assert File.read!("assets/js/app.js") == "// my own setup\n"
-    assert printed =~ ~s(by hand  assets/js/app.js: add `import {createHooks} from "xenia"`)
+    assert printed =~ "by hand  assets/js/app.js: add these lines after the imports"
     assert printed =~ "by hand  lib/pristine_web/router.ex is missing"
     assert printed =~ "Some steps need you"
 
