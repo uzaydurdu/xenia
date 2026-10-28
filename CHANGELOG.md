@@ -1,5 +1,58 @@
 # Changelog
 
+## 0.1.2 (2026-10-28)
+
+- **Requirements match what's tested.**
+  - LiveView `~> 1.2`, was `~> 1.1`: 1.1 was never tested.
+  - Elixir `~> 1.15` is unchanged, and now tested: CI runs the suite on
+    Elixir 1.15 with OTP 26 as well as on the newest versions.
+  - The official adapters' library versions (npm peer ranges) are the ones
+    tested:
+    - Uppy `^6`, was `^4 || ^5 || ^6`;
+    - xterm.js `^6`, was `^5 || ^6`;
+    - wavesurfer.js `^7`, was `^7 || ^8`.
+- **Surface UI.** Islands and declared tags work in Surface's `~F`
+  templates; the guide's new "In a Surface app" section shows how. An
+  adapter next to a Surface component goes in its `.hooks.js` file
+  (`export default adapterHook({...})`, then
+  `adapter="MyAppWeb.Components.Clock#default"`). In a Surface module,
+  `colocated/1` now raises an error explaining this, instead of rendering a
+  hook that never exists.
+- **`mix xenia.install`:**
+  - It now adds Xenia's hooks when the LiveSocket already spreads other
+    hooks, such as Surface's `{...Hooks, ...colocatedHooks}`.
+  - When it can't, it prints the whole snippet to add, including the theme
+    setup.
+  - It updates Phoenix's generated `page_controller_test.exs` to check the
+    new home page. Before, the first `mix test` after installing failed.
+- **Multi-value form fields:** the Tom Select (`multiple`) and flatpickr
+  (`multiple`/`range`) docs now say how to read their JSON list string
+  safely: `Jason.decode/1`, treating anything that isn't a list as empty.
+  An Ecto array field can't cast the string directly. The examples' form
+  page no longer crashes on a malformed value.
+- **CI** now also runs:
+  - the examples app's 50 browser tests (Playwright, Chromium);
+  - the test suite on the oldest supported Elixir and OTP;
+  - every night, both suites on the newest releases of LiveView, Phoenix
+    and each official adapter's library.
+- **Examples:** two new pages.
+  - "Two editors": each island has its own events, and a command reaches
+    only one of them.
+  - "An editor that stays open": a persistent part holding a Monaco
+    editor.
+
+  Also 6 new browser tests of an island's lifecycle: an edit sent before
+  leaving, rapid navigation, two editors, a persistent editor, leaving
+  while loading, and no leaks across 50 navigations.
+- **Monaco:** Monaco 0.57.0 pins DOMPurify 3.4.15, which `npm audit`
+  reports. `Xenia.Adapters.Monaco` shows the npm override to 3.4.17, and
+  the examples app uses it.
+- **README:** shorter, with a contents list. It has a new "When a plain
+  hook is enough" section, and marks pages from folders as optional.
+  Monaco's full setup moved to `Xenia.Adapters.Monaco`.
+- **`CONTRIBUTING.md`:** setup, the browser tests, and the rules for
+  changes.
+
 ## 0.1.1 (2026-10-25)
 
 - The README's banner follows the light or dark theme on hex.pm and HexDocs
