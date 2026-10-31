@@ -271,10 +271,14 @@ test("calendar: a click on a day adds an event; a click on an event opens it; co
   const { page, problems, close } = await open("/adapters/calendar")
   assert.equal(await page.locator("#calendar .fc-event").count(), 2)
 
-  const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)
-  const sameMonth = tomorrow.slice(0, 7) === new Date().toISOString().slice(0, 7)
-  const day = sameMonth ? tomorrow : new Date().toISOString().slice(0, 10)
-  await page.click(`#calendar .fc-daygrid-day[data-date="${day}"] .fc-daygrid-day-frame`)
+  // Any day of this month without an event. (Picking "tomorrow, or today at
+  // the end of a month" hit the event the page puts on today, so this test
+  // failed on the last day of every month.)
+  const freeDay = page
+    .locator("#calendar .fc-daygrid-day:not(.fc-day-other)")
+    .filter({ hasNot: page.locator(".fc-event") })
+    .first()
+  await freeDay.locator(".fc-daygrid-day-frame").click()
   await waitText(page, "#count", /^The server has 3 events\.$/)
   assert.equal(await page.locator("#calendar .fc-event").count(), 3)
 

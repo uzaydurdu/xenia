@@ -109,7 +109,8 @@ jobs:
 
       - name: Server log
         if: failure()
-        run: cat "$RUNNER_TEMP/server.log"
+        run: |
+          cat "$RUNNER_TEMP/server.log" 2>/dev/null || echo "No server log: the server never started (see the failed step above)."
 
   # The examples app (examples/) against this checkout of Xenia: it must
   # stay formatted, compile without warnings, pass its tests, and build its
