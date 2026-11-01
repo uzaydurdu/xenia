@@ -1,5 +1,91 @@
 # Changelog
 
+## 0.2.0 (unreleased)
+
+- **Large data, measured and documented:** a prop is sent again whole when
+  it changes, and Xenia sends all of a component's props as one attribute.
+  For a 10,000-point chart, a new point is 109 KB as a prop and 99 bytes as
+  a command. The guide's "Large data" shows the pattern (the adapter asks
+  with `ready`, the server sends the data once, then only changes), and the
+  examples app's `/large-data` compares both ways, from 100 to 10,000
+  points, with the script that measured them. Xenia's own share in the
+  browser is small (under half a millisecond to parse and compare those
+  props); the library's redraw is the cost.
+- **TypeScript declarations:** `Adapter<Instance, Props, Events, Commands>`
+  types any adapter, for any library: a typed `ctx` (`emit` and `call` only
+  take declared events and their payloads), props, commands and the
+  library's own instance type. Use it from a `.ts` file, which Phoenix's
+  esbuild compiles as it is, or from JavaScript with
+  `/** @type {import("xenia").Adapter<...>} */`. The 16 official adapters
+  come typed (factory options, props, events, commands), and so do
+  `createHooks`, `adapterHook` and the provider functions. The guide's
+  "Typed adapters" has the `tsconfig.json` setup; example: `/typed`. Checked
+  with TypeScript 5.9 and 7.0.
+- **`mix xenia.install` sets up the TypeScript paths:** in
+  `assets/tsconfig.json`, next to Phoenix's `"*": ["../deps/*"]`, two
+  entries that point `"xenia"` and `"xenia/<adapter>"` at Xenia's types
+  (Phoenix's alone doesn't find `"xenia/chartjs"`). Also with
+  `--islands-only`. A tsconfig it doesn't recognize gets the lines printed;
+  an app without one is left alone.
+- **`ctx.signal`:** an `AbortSignal` for each island instance, aborted when
+  it's destroyed or replaced, or its mount fails. Pass it to `fetch` and to
+  listeners on `document` or `window`
+  (`addEventListener("keydown", fn, { signal: ctx.signal })`), and they're
+  cancelled and removed for you; `destroy` no longer has to undo them.
+  Example: `/listeners`.
+- **The connection value:** `consumes: ["connection"]` gives an island
+  `"connected"` or `"disconnected"`, the state of its own LiveView (lost
+  connection, or a crash on the server until it has joined again). It
+  arrives as an ordinary prop, so an editor can turn read-only while its
+  edits can't reach the server. Example: `/connection`. The name is
+  reserved: `setProvider("connection", ...)` is ignored with a warning, and
+  `<Xenia.Provider.provider name="connection">` raises.
+- **Breaking: multi-value form fields submit a list.** Tom Select
+  (`multiple`), flatpickr (`multiple`/`range`) and SortableJS used to
+  submit one JSON string, e.g. `"[\"a\",\"b\"]"`, which an Ecto array
+  field couldn't cast. They now submit a list, one hidden input per value
+  (`post[tags][]`), so `{:array, :string}` casts it directly. An empty list
+  is submitted as `[""]`, so removing the last value still reaches the
+  server; Ecto's cast turns it into `[]`. **To upgrade:** remove the
+  `Jason.decode/1` of these fields; without Ecto, drop the `""`. In your own
+  adapters, `ctx.setFormValue(["a", "b"])` now writes a list (it used to
+  write the JSON string `'["a","b"]'`).
+- **Docs:**
+  - the ownership guide lists what Xenia guarantees, each with the test
+    that proves it, and explains things outside `el` (overlays, listeners)
+    and reconnects;
+  - the wrapping guide shows how to turn several prop changes into one
+    redraw.
+- **`mix xenia.install --islands-only`, for an existing app:** only Xenia's
+  hooks in `app.js` (next to the hooks it already spreads),
+  `import Xenia.Component`, and `:xenia` in the formatter. It leaves the
+  app's theme, layout, flash messages, routes and home page alone, and
+  prints the code-splitting steps instead of editing the esbuild config.
+  `mix xenia.gen.component` now says to add the adapter to an existing
+  `createHooks({...})`, instead of printing a whole hooks line that would
+  drop the app's own hooks.
+- **`Xenia.Test`:** test helpers for pages with islands, on top of
+  `Phoenix.LiveViewTest`:
+  - `xenia_props/2` reads an island's props;
+  - `render_xenia_event/4` sends an event as the adapter's `ctx.emit`
+    would (to the page's bound event; it raises if the event isn't bound);
+  - `assert_xenia_command/5` asserts a `Xenia.push_to/4` command;
+  - `xenia_call/5` returns a `ctx.call`'s reply.
+
+  Tests no longer need Xenia's attribute or event names.
+- **Lazy islands:** `lazy="visible"` on `<.xenia>`, every declared tag and
+  `<.monaco>` starts an island only when it scrolls near the screen. With
+  code splitting, its library downloads only then too. Commands sent before
+  then wait, and it starts with the latest props. The examples app's
+  `/lazy` shows it.
+- **Code splitting, documented and used by the examples app.** With
+  `--splitting --format=esm` and `<script type="module">`, each
+  `load: () => import(...)` becomes its own file. In the examples app, a
+  page downloads 0.59 MB of JavaScript up front instead of 7.9 MB
+  (production build). The README's "Code splitting" shows the setup, and
+  `Xenia.Adapters.Monaco` shows the second esbuild profile Monaco's workers
+  then need.
+
 ## 0.1.2 (2026-10-28)
 
 - **Requirements match what's tested.**

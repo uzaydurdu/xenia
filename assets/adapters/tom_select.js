@@ -35,11 +35,9 @@
  *   error    %{source, message, code}
  *
  * Form field: with field={@form[:tag]} the value is submitted with the form.
- * A multi-select submits a JSON array string, e.g. "[\"a\",\"b\"]", because
- * the form value is one hidden input. An Ecto {:array, _} field can't cast
- * that string: decode it first with Jason.decode/1 (not decode!, since the
- * browser can send any string), and treat anything that isn't a list as
- * empty.
+ * A multi-select submits a list, e.g. ["a", "b"], which an Ecto
+ * {:array, :string} field casts directly. With nothing selected it submits
+ * [""], which Ecto's cast turns into []. (Without Ecto, drop the "".)
  *
  * Import Tom Select's CSS once, e.g. in app.css:
  *   @import "../node_modules/tom-select/dist/css/tom-select.css";
@@ -81,7 +79,7 @@ export function createTomSelect({ load: libraryImport } = {}) {
   const loadLibrary = loadOnce(libraryImport, LOAD);
   let TomSelect;
   function normalizeValue(value, multiple) {
-    if (multiple) return toList(value).map(String); // also decodes a submitted JSON list
+    if (multiple) return toList(value).map(String);
 
     if (Array.isArray(value)) return value.length ? String(value[0]) : "";
     return value == null ? "" : String(value);

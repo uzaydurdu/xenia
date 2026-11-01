@@ -67,6 +67,9 @@ defmodule XeniaExamplesWeb.App.DatePickerPage do
     </div>
 
     <p :if={@saved} id="saved">Saved: "{@saved["title"]}" is due on {@saved["due"]}.</p>
+    <h2 class="text-lg font-semibold">How it's made</h2>
+    <.snippet title="The tag, in a form, in page.ex" code={tag_snippet()} />
+    <.snippet title="The adapter, in assets/js/islands/date_picker.js" code={adapter_snippet()} />
     """
   end
 
@@ -81,4 +84,48 @@ defmodule XeniaExamplesWeb.App.DatePickerPage do
       if params[to_string(field)] in [nil, ""], do: [{field, {message, []}}], else: []
     end)
   end
+
+  # The code on the page: how this example is made.
+  defp tag_snippet,
+    do: ~S"""
+    <.form for={@form} phx-change="validate" phx-submit="save">
+      <.input field={@form[:title]} label="Task" />
+      <.date_picker field={@form[:due]} min={Date.to_iso8601(Date.utc_today())} />
+    </.form>
+
+    # components/islands.ex: form_value makes `value` the field's value
+    component :date_picker, adapter: "DatePicker", form_value: :value do
+      prop :value, :string
+      prop :min, :string
+      event :change
+    end
+    """
+
+  defp adapter_snippet,
+    do: ~S"""
+    import flatpickr from "flatpickr"
+
+    export const datePicker = {
+      mount(el, props, ctx) {
+        const input = el.appendChild(document.createElement("input"))
+        return flatpickr(input, {
+          defaultDate: props.value || null,
+          onChange: (_dates, value) => {
+            ctx.emit("change", { value })
+            ctx.setFormValue(value) // into the form, and runs phx-change
+          },
+        })
+      },
+      destroy: (picker) => picker.destroy(),
+      props: {
+        // The server changed it: show it, and update the form quietly
+        value(picker, value, ctx) {
+          picker.setDate(value || null, false)
+          ctx.setFormValue(picker.input.value, { notify: false })
+        },
+      },
+      events: { change: {} },
+      commands: { open: (picker) => picker.open() },
+    }
+    """
 end

@@ -65,6 +65,46 @@ defmodule XeniaExamplesWeb.App.Adapters.UppyPage do
     <ul id="uploaded" class="space-y-1">
       <li :for={{name, size} <- @uploaded}>Received {name} ({size} bytes)</li>
     </ul>
+    <h2 class="text-lg font-semibold">How it's made</h2>
+    <.snippet title="The tag and the LiveView upload, in page.ex" code={page_snippet()} />
+    <.snippet title="The setup, once, in assets/js" code={setup_snippet()} />
     """
   end
+
+  # The code on the page: how this example is made.
+  defp page_snippet,
+    do: ~S"""
+    <.uppy id="uploader" transport="liveview" upload_name="files" auto_proceed />
+
+    <form id="upload-form" phx-change="validate" class="hidden">
+      <.live_file_input upload={@uploads.files} />
+    </form>
+
+    # In mount: an ordinary LiveView upload, which Uppy fills
+    allow_upload(socket, :files, accept: :any, max_entries: 5, auto_upload: true,
+      progress: &handle_progress/3)
+
+    defp handle_progress(:files, entry, socket) when entry.done? do
+      name = consume_uploaded_entry(socket, entry, fn %{path: _path} -> {:ok, entry.client_name} end)
+      {:noreply, update(socket, :uploaded, &(&1 ++ [name]))}
+    end
+    """
+
+  defp setup_snippet,
+    do: ~S"""
+    import { createUppy } from "xenia/uppy"
+
+    export const uppy = createUppy({
+      load: async () => {
+        const [core, dashboard] = await Promise.all([
+          import("@uppy/core"),
+          import("@uppy/dashboard"),
+        ])
+        return { Uppy: core.default, Dashboard: dashboard.default }
+      },
+    })
+
+    // app.js
+    createHooks({ Uppy: uppy })
+    """
 end

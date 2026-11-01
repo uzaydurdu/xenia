@@ -63,7 +63,12 @@
 
 import { isMac, matchShortcut, readShortcuts } from "./shortcuts.js";
 import { decodeProps, changedKeys, jsonEqual } from "./props.js";
-import { setProvider, readProvider, subscribe } from "./providers.js";
+import {
+  setProvider,
+  readProvider,
+  subscribe,
+  CONNECTION,
+} from "./providers.js";
 
 /** Controller lifecycle states. */
 const State = Object.freeze({
@@ -74,6 +79,9 @@ const State = Object.freeze({
 
 /** XeniaCall hooks (built into createHooks), by their element. */
 const callHooks = new WeakMap();
+
+/** Each ctx's AbortController: aborted when its instance's destruction begins. */
+const aborters = new WeakMap();
 
 /** Active controllers with potentially pending events. */
 const liveControllers = new Set();
@@ -322,6 +330,55 @@ function formValueToString(value) {
   return JSON.stringify(value);
 }
 
+/** The form field's name, without the "[]" of a list: "post[tags]". */
+function fieldName(input) {
+  return input.name.replace(/\[\]$/, "");
+}
+
+/**
+ * Makes the field's inputs hold `strings`, one input each, all named
+ * `name`. Reuses the inputs there are, removes the extra ones, and adds
+ * copies of the first. The first input always stays, so LiveView's record
+ * that the field was used stays with it.
+ *
+ * Returns false when the inputs already held exactly that.
+ */
+function writeFormInputs(inputs, name, strings) {
+  const unchanged =
+    inputs.length === strings.length &&
+    inputs.every(
+      (input, i) => input.name === name && input.value === strings[i],
+    );
+
+  if (unchanged) return false;
+
+  let last = inputs[0];
+
+  strings.forEach((string, i) => {
+    let input = inputs[i];
+
+    if (!input) {
+      input = inputs[0].cloneNode(false);
+      last.after(input);
+    }
+
+    input.name = name;
+    input.value = string;
+    last = input;
+  });
+
+  for (const extra of inputs.slice(strings.length)) extra.remove();
+
+  return true;
+}
+
+/** Tells the form the user changed the field: runs phx-change. */
+function notifyForm(input) {
+  input.dispatchEvent(
+    new input.ownerDocument.defaultView.Event("input", { bubbles: true }),
+  );
+}
+
 /**
  * Reads a provider value rendered by Phoenix
  * and saves it in Xenia's shared provider store.
@@ -462,11 +519,13 @@ export class Controller {
    */
   setUpLoading() {
     const container = this.hook.el;
-    this.frame = container.querySelector?.(":scope > [data-xenia-frame]") ?? null;
+    this.frame =
+      container.querySelector?.(":scope > [data-xenia-frame]") ?? null;
 
     const loading =
-      (this.frame ?? container).querySelector?.(":scope > [data-xenia-loading]") ??
-      null;
+      (this.frame ?? container).querySelector?.(
+        ":scope > [data-xenia-loading]",
+      ) ?? null;
 
     if (!loading) return null;
 
@@ -508,9 +567,18 @@ export class Controller {
       this.state !== State.DESTROYED &&
       this.el.isConnected;
 
-    return {
+    // From the island's own window, like the form's "input" event: a
+    // signal from another realm (an iframe, or Node's in jsdom tests) is
+    // refused by that page's addEventListener.
+    const view = this.hook.el.ownerDocument?.defaultView;
+    const aborter = new (view?.AbortController ?? AbortController)();
+
+    const ctx = {
       id: this.hook.el.id,
       hook: this.hook,
+
+      /** Aborted once this instance's destruction begins: cancels fetches, removes listeners. */
+      signal: aborter.signal,
 
       /** True while this context's instance is current and in the page. */
       isAlive,
@@ -539,12 +607,23 @@ export class Controller {
       call: (name, payload) => {
         if (!isAlive()) {
           return Promise.reject(
-            new Error(`[Xenia] call "${name}": the instance is no longer alive`),
+            new Error(
+              `[Xenia] call "${name}": the instance is no longer alive`,
+            ),
           );
         }
         return this.call(name, payload);
       },
     };
+
+    aborters.set(ctx, aborter);
+
+    return ctx;
+  }
+
+  /** Aborts `ctx.signal`: the instance's destruction has begun. */
+  abortContext(ctx) {
+    aborters.get(ctx)?.abort();
   }
 
   /**
@@ -558,10 +637,16 @@ export class Controller {
     const fromProviders = {};
 
     for (const name of this.consumes) {
-      const provided = readProvider(name);
+      // Xenia's own value, per island: its LiveView's connection. A hook
+      // mounts only after its LiveView joined, so "connected" until told.
+      if (name === CONNECTION) {
+        fromProviders[name] = this.hook._xeniaConnection ?? "connected";
+      } else {
+        const provided = readProvider(name);
 
-      if (provided !== null) {
-        fromProviders[name] = provided.value;
+        if (provided !== null) {
+          fromProviders[name] = provided.value;
+        }
       }
     }
 
@@ -612,11 +697,15 @@ export class Controller {
 
     try {
       if (this.unsubscribers.length === 0) {
-        this.unsubscribers = this.consumes.map((name) =>
-          subscribe(name, () => {
-            this.update();
-          }),
-        );
+        // "connection" isn't in the store: the hook's disconnected() and
+        // reconnected() update it (adapterHook).
+        this.unsubscribers = this.consumes
+          .filter((name) => name !== CONNECTION)
+          .map((name) =>
+            subscribe(name, () => {
+              this.update();
+            }),
+          );
       }
 
       const props = this.readProps();
@@ -678,6 +767,7 @@ export class Controller {
     this.commands.length = 0;
     this.unsubscribeProviders();
     this.cancelEvents();
+    this.abortContext(this.ctx);
     liveControllers.delete(this);
 
     this.el.remove();
@@ -741,6 +831,7 @@ export class Controller {
     this.unsubscribeProviders();
     this.cancelEvents();
     liveControllers.delete(this);
+    this.abortContext(this.ctx);
 
     if (wasMounted) {
       try {
@@ -930,7 +1021,8 @@ export class Controller {
     if (!this.ctx.isAlive()) return;
 
     const { serverEvent, problem } = this.serverEventFor(name);
-    if (problem === "undeclared") console.warn(`[Xenia] Undeclared event: "${name}"`);
+    if (problem === "undeclared")
+      console.warn(`[Xenia] Undeclared event: "${name}"`);
     if (!serverEvent) return;
 
     const debounce = this.adapter.events[name]?.debounce ?? 0;
@@ -1034,7 +1126,10 @@ export class Controller {
     // The call element's hook mounts in the same LiveView patch as the
     // container's; if a call comes during mount, it may be a tick behind.
     let callHook = this.callHook();
-    if (!callHook && this.hook.el.querySelector?.(":scope > [data-xenia-call]")) {
+    if (
+      !callHook &&
+      this.hook.el.querySelector?.(":scope > [data-xenia-call]")
+    ) {
       await Promise.resolve();
       callHook = this.callHook();
     }
@@ -1206,6 +1301,7 @@ export class Controller {
       this.state = State.MOUNTING;
       this.instance = undefined;
 
+      this.abortContext(oldCtx);
       checkSyncDestroy(this.adapter.destroy?.(oldInstance, oldCtx));
 
       // adapter.destroy() may have destroyed the controller synchronously.
@@ -1281,12 +1377,18 @@ export class Controller {
   }
 
   /**
-   * Updates the input used by a Phoenix form: the one the server renders
-   * as a direct child of the container, marked `data-xenia-field`
+   * Updates the inputs used by a Phoenix form: the ones the server renders
+   * as direct children of the container, marked `data-xenia-field`
    * (`<input type="text" hidden>`, see Xenia.Component).
+   *
+   * A list goes to setFormValues (below). Any other value is one input
+   * under the field's name; a field that held a list becomes one input
+   * again.
    *
    * notify: true  -> update input and trigger phx-change
    * notify: false -> update input silently
+   *
+   * An unchanged value triggers nothing.
    *
    * Returns:
    * true  -> a form input exists
@@ -1295,25 +1397,53 @@ export class Controller {
   setFormValue(value, { notify = true } = {}) {
     if (!this.ctx?.isAlive()) return false;
 
-    const input = this.hook.el.querySelector(
-      ":scope > input[data-xenia-field][name]",
+    const inputs = [
+      ...this.hook.el.querySelectorAll(
+        ":scope > input[data-xenia-field][name]",
+      ),
+    ];
+
+    if (inputs.length === 0) return false;
+
+    if (Array.isArray(value)) return this.setFormValues(inputs, value, notify);
+
+    const changed = writeFormInputs(inputs, fieldName(inputs[0]), [
+      formValueToString(value),
+    ]);
+
+    if (changed && notify) notifyForm(inputs[0]);
+
+    return true;
+  }
+
+  /**
+   * Writes a list to the form: one input per value, each named
+   * `post[tags][]`, so Phoenix submits a list (`["a", "b"]`) that an Ecto
+   * `{:array, _}` field casts directly. Each value is converted as in
+   * setFormValue. A field that held one value becomes a list here.
+   *
+   * An empty list keeps one input holding "" (`[""]`), so the form still
+   * submits the field, and removing the last value reaches the server.
+   * Ecto's cast removes empty strings from arrays, which gives `[]`.
+   *
+   * notify: true  -> one "input" event for the whole list (one phx-change)
+   * notify: false -> update inputs silently
+   *
+   * The same values in the same order trigger nothing.
+   *
+   * Returns:
+   * true  -> always: setFormValue has found the inputs
+   */
+  setFormValues(inputs, values, notify) {
+    const strings = values.map(formValueToString);
+
+    const changed = writeFormInputs(
+      inputs,
+      `${fieldName(inputs[0])}[]`,
+      strings.length > 0 ? strings : [""],
     );
 
-    if (!input) return false;
-
-    const next = formValueToString(value);
-
-    if (input.value === next) return true;
-
-    input.value = next;
-
-    if (notify) {
-      input.dispatchEvent(
-        new input.ownerDocument.defaultView.Event("input", {
-          bubbles: true,
-        }),
-      );
-    }
+    if (changed && notify) notifyForm(inputs[0]);
 
     return true;
   }
@@ -1408,8 +1538,33 @@ export function adapterHook(adapter, hookName) {
       const start = () => {
         if (this._xeniaDestroyed) return;
 
-        this._xeniaController = new Controller(this, adapter, { restart: start });
-        void this._xeniaController.mount();
+        this._xeniaController = new Controller(this, adapter, {
+          restart: start,
+        });
+        const mount = () => void this._xeniaController?.mount();
+
+        // lazy="visible": mount once the island is near the viewport. The
+        // controller exists already, so commands queue as for a slow mount,
+        // and mount() reads the latest props when it runs.
+        if (
+          this.el.getAttribute("data-xenia-lazy") === "visible" &&
+          "IntersectionObserver" in window
+        ) {
+          const observer = new IntersectionObserver(
+            (entries) => {
+              if (!entries.some((entry) => entry.isIntersecting)) return;
+              observer.disconnect();
+              if (this._xeniaObserver === observer)
+                this._xeniaObserver = undefined;
+              mount();
+            },
+            { rootMargin: "200px" },
+          );
+          this._xeniaObserver = observer;
+          observer.observe(this.el);
+        } else {
+          mount();
+        }
       };
 
       if (!this.el.id) {
@@ -1440,7 +1595,24 @@ export function adapterHook(adapter, hookName) {
       this._xeniaController?.update();
     },
 
+    // LiveView calls these when this hook's LiveView loses its connection
+    // (the socket dropped, or the view crashed and is rejoining), and when
+    // it has joined again. Kept on the hook, so a retry's new Controller
+    // starts with it too.
+    disconnected() {
+      this._xeniaConnection = "disconnected";
+      this._xeniaController?.update();
+    },
+
+    reconnected() {
+      this._xeniaConnection = "connected";
+      this._xeniaController?.update();
+    },
+
     destroyed() {
+      this._xeniaObserver?.disconnect();
+      this._xeniaObserver = undefined;
+
       // Unregister the event listener before tearing down the controller.
       if (this._xeniaHandler !== undefined) {
         this.removeHandleEvent(this._xeniaHandler);

@@ -21,8 +21,12 @@ it in and save again.
   form, and runs the form's `phx-change`.
 - **Errors appear once a field is used,** like `<.input>`'s, through Phoenix's
   `used_input?/1`. After a submit, every error shows.
+- **Tags are submitted as a list,** `post[tags][]`, one hidden input per
+  tag, so the server gets `["phoenix", "elixir"]`. With no tags it gets
+  `[""]`, so removing the last tag still reaches the server (an Ecto
+  `{:array, :string}` field turns that into `[]`).
 - **The server validates everything**, as in any Phoenix form. There is no
   JavaScript validation.
 - **The editors keep up with fast typing.** The form's validation replies can
   arrive while you type; the adapters tell them apart from your newer text.
-- Learn more in Xenia's README, under "Components in forms".
+- Learn more in Xenia's README, under "Forms".

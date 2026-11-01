@@ -31,12 +31,14 @@ import {createHooks, setProvider} from "xenia"
 import {chart} from "./islands/chart"
 import {datePicker} from "./islands/date_picker"
 import {rating} from "./islands/rating"
-import {monaco} from "./islands/monaco"
+import {monaco, offlineMonaco} from "./islands/monaco"
+// An adapter written in TypeScript: esbuild compiles .ts as it is.
+import {budget} from "./islands/budget"
 import {slow} from "./islands/slow"
 import {stepper} from "./islands/stepper"
 import {toggles} from "./islands/toggles"
 // Xenia's official Chart.js adapter, configured and extended (islands/chartjs.js).
-import {chartjs, revenueChart} from "./islands/chartjs"
+import {chartjs, revenueChart, liveChart} from "./islands/chartjs"
 // Every other official adapter, set up in one place (islands/official.js).
 import * as official from "./islands/official"
 
@@ -69,11 +71,14 @@ const liveSocket = new LiveSocket("/live", Socket, {
       DatePicker: datePicker,
       Rating: rating,
       Monaco: monaco,
+      Budget: budget,
+      OfflineMonaco: offlineMonaco,
       Slow: slow,
       Stepper: stepper,
       Toggles: toggles,
       ChartJS: chartjs,
       RevenueChart: revenueChart,
+      LiveChart: liveChart,
       Flatpickr: official.flatpickr,
       ShoelaceRating: official.shoelaceRating,
       SortableJS: official.sortablejs,

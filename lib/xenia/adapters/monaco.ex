@@ -86,6 +86,14 @@ defmodule Xenia.Adapters.Monaco do
 
   Restart `mix phx.server` after changing `config.exs`.
 
+  **With code splitting** (see the README's "Code splitting"), the workers
+  need a profile of their own: `--splitting` would move code they share
+  with `app.js` into chunks, and a worker created with `new Worker(url)`
+  can't `import` them. Keep the five worker entries, without `--splitting`,
+  in a second profile (`my_app_workers`), run it from the `assets.build`
+  and `assets.deploy` aliases, and add a watcher for it in `config/dev.exs`.
+  The examples app does exactly this.
+
   **4. Load Monaco's CSS.** esbuild writes the CSS Monaco imports next to
   `app.js`. Add a second stylesheet to `root.html.heex`:
 
@@ -199,6 +207,12 @@ defmodule Xenia.Adapters.Monaco do
     doc: "LiveView event sent if the editor throws (see Xenia.Component)"
   )
 
+  attr(:lazy, :string,
+    default: nil,
+    values: [nil, "visible"],
+    doc: ~s|"visible": mount when the island scrolls into view. nil mounts at once.|
+  )
+
   attr(:rest, :global)
 
   slot(:loading, doc: "Shown until the editor has loaded, e.g. \"Loading the editor…\"")
@@ -237,6 +251,7 @@ defmodule Xenia.Adapters.Monaco do
       events={@xenia_events}
       shortcuts={@shortcuts}
       on_crash={@on_crash}
+      lazy={@lazy}
       {@rest}
     >
       <:loading :for={slot <- @loading}>{render_slot(slot)}</:loading>

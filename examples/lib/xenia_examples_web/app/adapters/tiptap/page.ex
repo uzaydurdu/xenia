@@ -60,6 +60,49 @@ defmodule XeniaExamplesWeb.App.Adapters.TiptapPage do
 
     <p id="stats">{@stats || "Type in the editor."}</p>
     <pre :if={@html} id="html" class="overflow-x-auto rounded-md border border-base-300 p-3 text-xs">{@html}</pre>
+    <h2 class="text-lg font-semibold">How it's made</h2>
+    <.snippet title="The tag and the server, in page.ex" code={page_snippet()} />
+    <.snippet title="The setup, once, in assets/js" code={setup_snippet()} />
     """
   end
+
+  # The code on the page: how this example is made.
+  defp page_snippet,
+    do: ~S"""
+    <.tiptap
+      id="notes"
+      content={@content}
+      editable={@editable}
+      placeholder="Write something…"
+      toolbar={true}
+      on_change="changed"
+    />
+
+    Xenia.push_to(socket, "notes", "insert", %{content: " — sent with Xenia"})
+    Xenia.push_to(socket, "notes", "set_content", %{value: "<p>A draft</p>"})
+    """
+
+  defp setup_snippet,
+    do: ~S"""
+    import { createTiptap } from "xenia/tiptap"
+
+    export const tiptap = createTiptap({
+      load: async () => {
+        const [core, starterKit, extensions] = await Promise.all([
+          import("@tiptap/core"),
+          import("@tiptap/starter-kit"),
+          import("@tiptap/extensions"),
+        ])
+        return {
+          Editor: core.Editor,
+          StarterKit: starterKit.default,
+          CharacterCount: extensions.CharacterCount,
+          Placeholder: extensions.Placeholder,
+        }
+      },
+    })
+
+    // app.js
+    createHooks({ Tiptap: tiptap })
+    """
 end

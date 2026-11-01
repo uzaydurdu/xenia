@@ -27,6 +27,7 @@
  * - Preservation of Phoenix-owned DOM
  * - Quiet server updates (`notify: false`) and the return value, which
  *   tells an adapter whether it is a form field
+ * - Lists (setFormValues): one `name[]` input per value
  *
  * These are controller-level tests. Real phx-change behavior
  * must also be verified in a browser running Phoenix LiveView.
@@ -75,6 +76,8 @@ function setup(
     value = "initial",
     name = "snippet[code]",
     id = "editor",
+    // A list field, as Xenia.Component renders it: one `name[]` input per value.
+    values = null,
   } = {},
 ) {
   const originalDocument = globalThis.document;
@@ -99,7 +102,12 @@ function setup(
 
   let input = null;
 
-  if (field) {
+  if (field && values) {
+    for (const item of values) {
+      el.appendChild(formInput(doc, { name: `${name}[]`, value: item }));
+    }
+    input = el.querySelector(FORM_INPUT);
+  } else if (field) {
     input = formInput(doc, { name, value });
     el.appendChild(input);
   }
@@ -191,8 +199,6 @@ const conversions = [
   ["undefined", undefined, ""],
   ["object", { code: "hello" }, '{"code":"hello"}'],
   ["nested object", { a: { b: 1 } }, '{"a":{"b":1}}'],
-  ["array", ["a", "b"], '["a","b"]'],
-  ["empty array", [], "[]"],
   ["empty object", {}, "{}"],
 ];
 
@@ -858,4 +864,174 @@ test("setFormValue returns false from a context replaced by a remount", async (t
   assert.equal(oldCtx.setFormValue("stale"), false);
   assert.equal(fixture.input.value, "initial");
   assert.deepEqual(fixture.events, []);
+});
+
+// ------------------------------------------------------------
+// 10. Lists: one `name[]` input per value (setFormValues)
+// ------------------------------------------------------------
+
+/** The field's inputs, as [name, value] pairs in document order. */
+const inputsOf = (fixture) =>
+  [...fixture.el.querySelectorAll(FORM_INPUT)].map((input) => [input.name, input.value]);
+
+/** What the browser would submit for a list field. */
+const submittedList = (fixture, name = "post[tags][]") =>
+  new fixture.dom.window.FormData(fixture.form).getAll(name);
+
+const listField = (t, values) =>
+  mounted(t, { name: "post[tags]", values });
+
+/**
+ * Phoenix submits `post[tags][]` as a list, which an Ecto {:array, _}
+ * field casts directly. A field that starts as one plain input (its
+ * value was nil) becomes a list on the first array.
+ */
+test("a list makes one post[tags][] input per value", async (t) => {
+  const fixture = await mounted(t, { name: "post[tags]", value: "" });
+
+  assert.equal(fixture.controller.ctx.setFormValue(["elixir", "phoenix"]), true);
+
+  assert.deepEqual(inputsOf(fixture), [
+    ["post[tags][]", "elixir"],
+    ["post[tags][]", "phoenix"],
+  ]);
+  assert.deepEqual(submittedList(fixture), ["elixir", "phoenix"]);
+  assert.equal(submittedValue(fixture, "post[tags]"), null);
+});
+
+/** One phx-change for the whole list, sent once every input is written. */
+test("a changed list dispatches one bubbling input event, from the first input", async (t) => {
+  const fixture = await listField(t, ["elixir"]);
+  const first = fixture.input;
+  let seen = null;
+
+  fixture.form.addEventListener("input", () => {
+    seen = submittedList(fixture);
+  });
+
+  fixture.controller.ctx.setFormValue(["elixir", "phoenix", "ecto"]);
+
+  assert.equal(fixture.events.length, 1);
+  assert.equal(fixture.events[0].target, first);
+  assert.equal(fixture.events[0].bubbles, true);
+  assert.deepEqual(seen, ["elixir", "phoenix", "ecto"]);
+});
+
+test("the same values in the same order dispatch nothing", async (t) => {
+  const fixture = await listField(t, ["elixir", "phoenix"]);
+
+  assert.equal(fixture.controller.ctx.setFormValue(["elixir", "phoenix"]), true);
+  assert.deepEqual(fixture.events, []);
+
+  fixture.controller.ctx.setFormValue(["phoenix", "elixir"]);
+  assert.equal(fixture.events.length, 1, "a new order is a change");
+  assert.deepEqual(submittedList(fixture), ["phoenix", "elixir"]);
+});
+
+/**
+ * Inputs are reused, added after the last one, or removed from the end.
+ * The first input is never replaced: LiveView records on it that the
+ * field was used, which `used_input?/1` depends on.
+ */
+test("growing and shrinking keeps the first input node", async (t) => {
+  const fixture = await listField(t, ["a", "b"]);
+  const first = fixture.input;
+  const { ctx } = fixture.controller;
+
+  for (const values of [["a", "b", "c", "d"], ["x"], ["x", "y"], [], ["z"]]) {
+    ctx.setFormValue(values);
+    assert.equal(fixture.el.querySelector(FORM_INPUT), first, `first input kept for ${JSON.stringify(values)}`);
+  }
+
+  assert.deepEqual(inputsOf(fixture), [["post[tags][]", "z"]]);
+});
+
+/**
+ * Added inputs are copies of the first: still marked for the core, still
+ * invisible text inputs. They stay together, before the adapter's `el`.
+ */
+test("added inputs are invisible field inputs, placed with the others", async (t) => {
+  const fixture = await listField(t, ["a"]);
+
+  fixture.controller.ctx.setFormValue(["a", "b", "c"]);
+
+  const inputs = [...fixture.el.querySelectorAll(FORM_INPUT)];
+
+  for (const input of inputs) {
+    assert.equal(input.type, "text");
+    assert.equal(input.hidden, true);
+    assert.equal(input.getAttribute("autocomplete"), "off");
+    assert.equal(input.hasAttribute("data-xenia-field"), true);
+  }
+
+  assert.deepEqual([...fixture.el.children], [...inputs, fixture.controller.el]);
+});
+
+/**
+ * An empty list keeps one empty input, so the form still sends the field
+ * and removing the last tag reaches the server. Ecto's cast removes the
+ * "" (the server renders the same input for []).
+ */
+test("an empty list submits one empty value", async (t) => {
+  const fixture = await listField(t, ["elixir", "phoenix"]);
+
+  fixture.controller.ctx.setFormValue([]);
+
+  assert.deepEqual(inputsOf(fixture), [["post[tags][]", ""]]);
+  assert.deepEqual(submittedList(fixture), [""]);
+  assert.equal(fixture.events.length, 1);
+
+  // What the server renders for []: unchanged, so nothing is sent.
+  fixture.controller.ctx.setFormValue([]);
+  assert.equal(fixture.events.length, 1);
+});
+
+test("each value is converted like a single value", async (t) => {
+  const fixture = await listField(t, [""]);
+
+  fixture.controller.ctx.setFormValue([1, true, null, { a: 1 }, ["b"]]);
+
+  assert.deepEqual(submittedList(fixture), ["1", "true", "", '{"a":1}', '["b"]']);
+});
+
+test("notify: false writes the list without notifying Phoenix", async (t) => {
+  const fixture = await listField(t, ["a"]);
+
+  assert.equal(
+    fixture.controller.ctx.setFormValue(["server", "list"], { notify: false }),
+    true,
+  );
+
+  assert.deepEqual(submittedList(fixture), ["server", "list"]);
+  assert.deepEqual(fixture.events, []);
+});
+
+/** A field given a plain value is one plain input again. */
+test("a plain value turns a list field back into one input", async (t) => {
+  const fixture = await listField(t, ["a", "b"]);
+  const first = fixture.input;
+
+  fixture.controller.ctx.setFormValue("single");
+
+  assert.deepEqual(inputsOf(fixture), [["post[tags]", "single"]]);
+  assert.equal(fixture.el.querySelector(FORM_INPUT), first);
+  assert.equal(fixture.events.length, 1);
+});
+
+test("a list after destruction changes nothing", async (t) => {
+  const fixture = await listField(t, ["a"]);
+  const { ctx } = fixture.controller;
+
+  fixture.controller.destroy();
+
+  assert.equal(ctx.setFormValue(["b", "c"]), false);
+  assert.deepEqual(inputsOf(fixture), [["post[tags][]", "a"]]);
+  assert.deepEqual(fixture.events, []);
+});
+
+test("a list outside a form field returns false", async (t) => {
+  const fixture = await mounted(t, { field: false });
+
+  assert.equal(fixture.controller.ctx.setFormValue(["a"]), false);
+  assert.equal(fixture.el.querySelector("input"), null);
 });

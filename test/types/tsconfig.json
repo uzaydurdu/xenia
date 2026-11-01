@@ -1,0 +1,20 @@
+{
+  // Type-checks the fixtures in this folder against Xenia's declarations
+  // (priv/types), as an app would see them: "xenia" resolves through
+  // package.json's "exports". Run with `npm run types` (part of mix check).
+  // Every `@ts-expect-error` in a fixture is a mistake the types must catch:
+  // if one isn't caught, tsc fails with "Unused '@ts-expect-error' directive".
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "lib": ["es2022", "dom"],
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": true,
+    "skipLibCheck": false,
+    "types": []
+  },
+  "include": ["*.js", "*.ts"]
+}

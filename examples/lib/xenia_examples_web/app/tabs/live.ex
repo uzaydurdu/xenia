@@ -48,6 +48,12 @@ defmodule XeniaExamplesWeb.App.TabsLive do
     {Xenia.Live.page(assigns)}
 
     <button id="add" phx-click="add" class="btn btn-sm">Add one</button>
+    <h2 class="text-lg font-semibold">How it's made</h2>
+    <.snippet title="tabs/live.ex: one LiveView for both tabs" code={live_snippet()} />
+    <.snippet
+      title="tabs/first/page.ex: a page that only renders, with the LiveView's assigns"
+      code={page_snippet()}
+    />
     """
   end
 
@@ -55,4 +61,39 @@ defmodule XeniaExamplesWeb.App.TabsLive do
   defp tab_active(XeniaExamplesWeb.App.Tabs.FirstPage, :first), do: "tab-active"
   defp tab_active(XeniaExamplesWeb.App.Tabs.SecondPage, :second), do: "tab-active"
   defp tab_active(_page, _tab), do: nil
+
+  # The code on the page: how this example is made.
+  defp live_snippet,
+    do: ~S'''
+    defmodule MyAppWeb.App.TabsLive do
+      use MyAppWeb, :live_view
+      use Xenia.Live
+
+      def mount(_params, _session, socket), do: {:ok, assign(socket, count: 0)}
+      def handle_params(_params, _uri, socket), do: {:noreply, socket}
+      def handle_event("add", _params, socket), do: {:noreply, update(socket, :count, &(&1 + 1))}
+
+      def render(assigns) do
+        ~H"""
+        <.link patch={~p"/tabs/first"}>First</.link>
+        <.link patch={~p"/tabs/second"}>Second</.link>
+        {Xenia.Live.page(assigns)}
+        <button phx-click="add">Add one</button>
+        """
+      end
+    end
+    '''
+
+  defp page_snippet,
+    do: ~S'''
+    defmodule MyAppWeb.App.Tabs.FirstPage do
+      use MyAppWeb, :html
+
+      def render(assigns) do
+        ~H"""
+        <p>First tab. The count is {@count}.</p>
+        """
+      end
+    end
+    '''
 end

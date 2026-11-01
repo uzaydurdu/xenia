@@ -47,6 +47,39 @@ defmodule XeniaExamplesWeb.App.Adapters.FlatpickrPage do
     </div>
 
     <p id="picked">{@picked || "No dates yet."}</p>
+    <h2 class="text-lg font-semibold">How it's made</h2>
+    <.snippet title="The tag and the server, in page.ex" code={page_snippet()} />
+    <.snippet title="The setup, once, in assets/js" code={setup_snippet()} />
     """
   end
+
+  # The code on the page: how this example is made.
+  defp page_snippet,
+    do: ~S"""
+    <.flatpickr
+      id="trip"
+      mode="range"
+      value={@range}
+      min_date="today"
+      on_change="picked"
+    />
+
+    # A range arrives as a list of two dates
+    def handle_event("picked", %{"value" => [from, to]}, socket), do: ...
+
+    Xenia.push_to(socket, "trip", "open")
+    """
+
+  defp setup_snippet,
+    do: ~S"""
+    import { createFlatpickr } from "xenia/flatpickr"
+
+    export const flatpickr = createFlatpickr({ load: () => import("flatpickr") })
+
+    // app.js
+    createHooks({ Flatpickr: flatpickr })
+
+    /* app.css */
+    @import "../node_modules/flatpickr/dist/flatpickr.min.css";
+    """
 end

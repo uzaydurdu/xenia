@@ -62,8 +62,9 @@ defmodule Xenia.Adapters.SortableJS do
       list's component id. A move between lists sends `remove` from one and
       `add` from the other: update both lists' items on the server.
 
-    Form field: with field={@form[:order]}, the ids are submitted as a JSON
-    array string, e.g. "[\"a\",\"c\",\"b\"]" (decode it with Jason).
+    Form field: with field={@form[:order]}, the ids are submitted as a list,
+    e.g. ["a", "c", "b"], which an Ecto {:array, :string} field casts
+    directly.
   """
   use Xenia.Components
 

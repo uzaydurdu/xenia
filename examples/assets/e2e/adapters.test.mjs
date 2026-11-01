@@ -9,6 +9,7 @@
 import { test, before, after } from "node:test"
 import assert from "node:assert/strict"
 import { chromium } from "playwright"
+import { isBrowserError } from "./console.mjs"
 
 const BASE = process.env.E2E_URL ?? "http://localhost:4002"
 const SETTLE = 500
@@ -28,7 +29,7 @@ async function open(path) {
   const page = await context.newPage()
   const problems = []
   page.on("pageerror", (e) => problems.push(e.message))
-  page.on("console", (m) => { if (m.type() === "error") problems.push(m.text()) })
+  page.on("console", (m) => { if (isBrowserError(m)) problems.push(m.text()) })
   await page.goto(BASE + path)
   await page.waitForSelector("[data-phx-main].phx-connected")
   await page.waitForTimeout(SETTLE)
@@ -387,6 +388,44 @@ test("audio studio: two tracks load; a recording from the (fake) microphone", as
   await page.waitForTimeout(1200)
   await click(page, "#stop")
   await waitText(page, "#recorded", /^Recorded \d+(\.\d)? s, \d+ bytes\.$/)
+
+  assert.deepEqual(problems, [])
+  await close()
+})
+
+// A multi-select submits a list: one post[tags][] input per tag, and one
+// empty input for none, so removing the last tag reaches the server too.
+test("a form's tags: one input per tag, and removing them all reaches the server", async () => {
+  const { page, problems, close } = await open("/forms")
+  const inputs = () =>
+    page.$$eval("#post_tags > input[data-xenia-field]", (all) => all.map((i) => [i.name, i.value]))
+  const serverTags = async () =>
+    JSON.parse(await page.getAttribute("#post_tags", "data-xenia-props")).value
+
+  assert.deepEqual(await inputs(), [["post[tags][]", ""]])
+
+  // Tom Select keeps the typed text after a pick, so each search replaces it.
+  const search = "#post_tags .ts-control input"
+  await page.click("#post_tags .ts-control")
+  for (const [typed, option] of [["Phoen", "Phoenix"], ["Elix", "Elixir"]]) {
+    await page.fill(search, typed)
+    await page.waitForSelector(`.ts-dropdown .option.active:has-text("${option}")`)
+    await page.keyboard.press("Enter")
+  }
+  await page.waitForTimeout(800)
+
+  assert.deepEqual(await inputs(), [["post[tags][]", "phoenix"], ["post[tags][]", "elixir"]])
+  assert.deepEqual(await serverTags(), ["phoenix", "elixir"])
+
+  await page.fill(search, "")
+  await page.keyboard.press("Backspace")
+  await page.keyboard.press("Backspace")
+  await page.keyboard.press("Escape")
+  await page.waitForTimeout(800)
+
+  assert.deepEqual(await inputs(), [["post[tags][]", ""]])
+  assert.deepEqual(await serverTags(), [])
+  assert.equal(await page.locator("#post_tags .ts-control .item").count(), 0, "the reply doesn't bring a tag back")
 
   assert.deepEqual(problems, [])
   await close()

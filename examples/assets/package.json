@@ -3,7 +3,8 @@
   "private": true,
   "scripts": {
     "e2e": "node --test e2e/*.test.mjs",
-    "e2e:ci": "node --test --test-concurrency=1 e2e/*.test.mjs"
+    "e2e:ci": "node --test --test-concurrency=1 e2e/*.test.mjs",
+    "typecheck": "tsc -p ."
   },
   "dependencies": {
     "@fullcalendar/core": "6.1.22",
@@ -38,7 +39,8 @@
     "xenia": "file:../.."
   },
   "devDependencies": {
-    "playwright": "1.62.1"
+    "playwright": "1.62.1",
+    "typescript": "7.0.2"
   },
   "overrides": {
     "monaco-editor": {

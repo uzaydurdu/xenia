@@ -63,9 +63,34 @@ defmodule XeniaExamplesWeb.App.Adapters.SortablePage do
     </div>
 
     <p id="server-order">The server has: to do {labels(@todo)}; done {labels(@done)}.</p>
+    <h2 class="text-lg font-semibold">How it's made</h2>
+    <.snippet title="The tags and the server, in page.ex" code={page_snippet()} />
+    <.snippet title="The setup, once, in assets/js" code={setup_snippet()} />
     """
   end
 
   defp cards(ids), do: Enum.map(ids, &Map.fetch!(@cards, &1))
   defp labels(cards), do: Enum.map_join(cards, ", ", & &1.label)
+
+  # The code on the page: how this example is made.
+  defp page_snippet,
+    do: ~S"""
+    <.sortable_list id="todo" items={@todo} group="board" on_sort="todo_changed" on_add="todo_changed" on_remove="todo_changed" />
+    <.sortable_list id="done" items={@done} group="board" on_sort="done_changed" on_add="done_changed" on_remove="done_changed" />
+
+    # @todo: [%{id: "a", label: "Write the README"}, ...]
+    # `ids` is the list's order after the change
+    def handle_event("todo_changed", %{"ids" => ids}, socket),
+      do: {:noreply, assign(socket, todo: cards(ids))}
+    """
+
+  defp setup_snippet,
+    do: ~S"""
+    import { createSortablejs } from "xenia/sortablejs"
+
+    export const sortablejs = createSortablejs({ load: () => import("sortablejs") })
+
+    // app.js
+    createHooks({ SortableJS: sortablejs })
+    """
 end

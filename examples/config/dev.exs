@@ -16,6 +16,8 @@ config :xenia_examples, XeniaExamplesWeb.Endpoint,
   secret_key_base: "BLAne/bJOuT4yuxnZZScnBVfIurldAwa+oXeEm2Jf8VcQmvkAwQ8wR6SfPZEoeXY",
   watchers: [
     esbuild: {Esbuild, :install_and_run, [:xenia_examples, ~w(--sourcemap=inline --watch)]},
+    esbuild_workers:
+      {Esbuild, :install_and_run, [:xenia_examples_workers, ~w(--sourcemap=inline --watch)]},
     tailwind: {Tailwind, :install_and_run, [:xenia_examples, ~w(--watch)]}
   ]
 

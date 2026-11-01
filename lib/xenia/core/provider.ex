@@ -16,6 +16,10 @@ defmodule Xenia.Provider do
       consumes: ["theme"]
 
   The `XeniaProvider` hook must be registered, which `createHooks/1` does.
+
+  One name is reserved: `"connection"`. Xenia gives it to each island that
+  consumes it, `"connected"` or `"disconnected"`, from that island's own
+  LiveView, so no provider publishes it.
   """
 
   use Phoenix.Component
@@ -63,10 +67,20 @@ defmodule Xenia.Provider do
   end
 
   defp validate_name!(name) when is_binary(name) do
-    unless Regex.match?(@name_format, name) do
-      raise ArgumentError,
-            "Xenia provider name must start with a lowercase letter and contain only " <>
-              "lowercase letters, digits and underscores, got: #{inspect(name)}"
+    cond do
+      name == "connection" ->
+        raise ArgumentError,
+              ~s(Xenia provider name "connection" is reserved: Xenia sets it for each ) <>
+                ~s(island from its LiveView's connection. Adapters get it with ) <>
+                ~s(consumes: ["connection"].)
+
+      not Regex.match?(@name_format, name) ->
+        raise ArgumentError,
+              "Xenia provider name must start with a lowercase letter and contain only " <>
+                "lowercase letters, digits and underscores, got: #{inspect(name)}"
+
+      true ->
+        :ok
     end
   end
 

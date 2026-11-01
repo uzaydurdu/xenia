@@ -31,7 +31,15 @@ config :esbuild,
   version: "0.25.4",
   xenia_examples: [
     args: ~w(app=js/app.js
-             monaco/editor.worker=node_modules/monaco-editor/esm/vs/editor/editor.worker.js
+             --bundle --splitting --format=esm --target=es2022
+             --outdir=../priv/static/assets/js
+             --chunk-names=chunks/[name]-[hash]
+             --external:/fonts/* --external:/images/* --alias:@=. --loader:.ttf=file),
+    cd: Path.expand("../assets", __DIR__),
+    env: %{"NODE_PATH" => [Path.expand("../deps", __DIR__), Mix.Project.build_path()]}
+  ],
+  xenia_examples_workers: [
+    args: ~w(monaco/editor.worker=node_modules/monaco-editor/esm/vs/editor/editor.worker.js
              monaco/json.worker=node_modules/monaco-editor/esm/vs/language/json/json.worker.js
              monaco/css.worker=node_modules/monaco-editor/esm/vs/language/css/css.worker.js
              monaco/html.worker=node_modules/monaco-editor/esm/vs/language/html/html.worker.js

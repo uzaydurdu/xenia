@@ -114,6 +114,48 @@ defmodule XeniaExamplesWeb.App.Adapters.MonacoPage do
     <p id="shortcut-result">
       Font size: <span id="font-size">{@font_size}</span>. <span id="saved">{@saved}</span>
     </p>
+    <h2 class="text-lg font-semibold">How it's made</h2>
+    <.snippet title="The tag and the server, in page.ex" code={page_snippet()} />
+    <.snippet title="The setup, once, in assets/js/islands/monaco.js" code={setup_snippet()} />
     """
   end
+
+  # The code on the page: how this example is made.
+  defp page_snippet,
+    do: ~S"""
+    <.monaco
+      id="editor"
+      value={@code}
+      version={@version}
+      language="elixir"
+      shortcuts={%{"mod+s" => "save"}}
+      on_change="code_changed"
+    >
+      <:loading>Loading the editor…</:loading>
+    </.monaco>
+
+    # `version` lets the editor tell a stale echo from the server's own change
+    def handle_event("code_changed", %{"value" => code, "version" => version}, socket),
+      do: {:noreply, assign(socket, code: code, version: version)}
+
+    def handle_event("save", %{"shortcut" => _}, socket), do: ...
+
+    Xenia.push_to(socket, "editor", "insert", %{text: "IO.inspect(value)\n"})
+    """
+
+  defp setup_snippet,
+    do: ~S"""
+    import { createMonaco } from "xenia/monaco"
+
+    export const monaco = createMonaco({
+      load: () => import("monaco-editor"),
+      // Runs once per editor: completions, commands, ...
+      setup: (monaco) => elixirSnippets(monaco),
+    })
+
+    // app.js
+    createHooks({ Monaco: monaco })
+
+    // Monaco's web workers need a few esbuild lines: see Xenia.Adapters.Monaco.
+    """
 end

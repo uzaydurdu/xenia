@@ -60,6 +60,42 @@ defmodule XeniaExamplesWeb.App.Adapters.TabulatorPage do
     <button id="add" phx-click="add" class="btn btn-sm">Add a row</button>
     <p id="last">{@last}</p>
     <p id="count">The server has {length(@people)} rows.</p>
+    <h2 class="text-lg font-semibold">How it's made</h2>
+    <.snippet title="The tag and the server, in page.ex" code={page_snippet()} />
+    <.snippet title="The setup, once, in assets/js" code={setup_snippet()} />
     """
   end
+
+  # The code on the page: how this example is made.
+  defp page_snippet,
+    do: ~S"""
+    <.tabulator
+      id="people"
+      data={@people}
+      columns={@columns}
+      height="240px"
+      on_cell_edited="edited"
+      on_row_click="clicked"
+    />
+
+    @columns [
+      %{title: "Name", field: "name", editor: "input"},
+      %{title: "Age", field: "age", sorter: "number", editor: "number"}
+    ]
+
+    def handle_event("edited", %{"id" => id, "field" => field, "value" => value}, socket), do: ...
+    """
+
+  defp setup_snippet,
+    do: ~S"""
+    import { createTabulator } from "xenia/tabulator"
+
+    export const tabulator = createTabulator({ load: () => import("tabulator-tables") })
+
+    // app.js
+    createHooks({ Tabulator: tabulator })
+
+    /* app.css */
+    @import "../node_modules/tabulator-tables/dist/css/tabulator_simple.min.css";
+    """
 end

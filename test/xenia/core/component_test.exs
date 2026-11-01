@@ -486,6 +486,73 @@ defmodule Xenia.ComponentTest do
                    end
     end
   end
+
+  describe "lazy islands" do
+    test "lazy=\"visible\" renders data-xenia-lazy; absent unless given" do
+      assigns = %{}
+
+      lazy =
+        rendered_to_string(~H"""
+        <.xenia id="editor" adapter="Monaco" lazy="visible" />
+        """)
+        |> find()
+
+      eager =
+        rendered_to_string(~H"""
+        <.xenia id="editor" adapter="Monaco" />
+        """)
+        |> find()
+
+      assert attr(lazy, "data-xenia-lazy") == "visible"
+      assert attr(eager, "data-xenia-lazy") == nil
+    end
+
+    test "data-xenia-lazy is Xenia's, so it can't be passed through" do
+      assigns = %{}
+
+      assert_raise ArgumentError,
+                   ~r/cannot override Xenia-managed attributes: data-xenia-lazy/,
+                   fn ->
+                     rendered_to_string(~H"""
+                     <.xenia id="editor" adapter="Monaco" data-xenia-lazy="visible" />
+                     """)
+                   end
+    end
+  end
+end
+
+defmodule Xenia.ComponentLazyWarningTest do
+  @moduledoc """
+  The compile-time warning for a lazy value other than "visible". Its own
+  synchronous module: the warning goes to stderr, where an async test that
+  captures stderr (`capture_io/2` is global) would catch it. Synchronous
+  tests run after the async ones, so capturing it here is safe.
+  """
+
+  use ExUnit.Case, async: false
+
+  import ExUnit.CaptureIO, only: [capture_io: 2]
+
+  test "a lazy value other than visible is a compile-time warning" do
+    warnings =
+      capture_io(:stderr, fn ->
+        Code.compile_string("""
+        defmodule Xenia.ComponentTest.LazyTypo do
+          use Phoenix.Component
+          import Xenia.Component
+
+          def render(assigns) do
+            ~H\"\"\"
+            <.xenia id="editor" adapter="Monaco" lazy="soon" />
+            \"\"\"
+          end
+        end
+        """)
+      end)
+
+    assert warnings =~
+             ~s|attribute "lazy" in component Xenia.Component.xenia/1 must be one of [nil, "visible"]|
+  end
 end
 
 defmodule Xenia.ComponentBindingPrefixTest do
@@ -626,5 +693,65 @@ defmodule Xenia.ComponentBindingPrefixTest do
     assert LazyHTML.attribute(input, "name") == ["snippet[code]"]
     assert LazyHTML.attribute(input, "value") == ["IO.puts(:hello)"]
     assert Enum.count(LazyHTML.query(element, "input[type=hidden]")) == 0
+  end
+
+  describe "a field whose value is a list" do
+    defp field_inputs(value) do
+      assigns = %{form: Phoenix.Component.to_form(%{"tags" => value}, as: :post)}
+
+      rendered_to_string(~H"""
+      <.xenia field={@form[:tags]} adapter="TomSelect" />
+      """)
+      |> LazyHTML.from_fragment()
+      |> LazyHTML.query_by_id("post_tags")
+      |> LazyHTML.query("input[data-xenia-field]")
+    end
+
+    defp names_and_values(inputs) do
+      Enum.map(inputs, fn input ->
+        {LazyHTML.attribute(input, "name"), LazyHTML.attribute(input, "value")}
+      end)
+    end
+
+    # Phoenix submits post[tags][] as a list, so an Ecto {:array, _} field
+    # casts it directly. No plain post[tags] input: it would be a second,
+    # conflicting value.
+    test "renders one input per value, named post[tags][]" do
+      inputs = field_inputs(["elixir", "phoenix"])
+
+      assert names_and_values(inputs) == [
+               {["post[tags][]"], ["elixir"]},
+               {["post[tags][]"], ["phoenix"]}
+             ]
+
+      for input <- inputs do
+        assert LazyHTML.attribute(input, "type") == ["text"]
+        assert LazyHTML.attribute(input, "hidden") == [""]
+        assert LazyHTML.attribute(input, "autocomplete") == ["off"]
+      end
+    end
+
+    # Without an input the form wouldn't send the field at all, and
+    # removing the last value would never reach the server. [""] is what
+    # Ecto's cast turns into [].
+    test "an empty list renders one empty input, so the field is still submitted" do
+      assert names_and_values(field_inputs([])) == [{["post[tags][]"], [""]}]
+    end
+
+    # The same rule as a single value, and as setFormValues in the browser.
+    test "each value is converted like a single value" do
+      assert names_and_values(field_inputs([1, true, :draft, nil, %{"a" => 1}])) == [
+               {["post[tags][]"], ["1"]},
+               {["post[tags][]"], ["true"]},
+               {["post[tags][]"], ["draft"]},
+               {["post[tags][]"], [""]},
+               {["post[tags][]"], [~s({"a":1})]}
+             ]
+    end
+
+    test "a value that isn't a list still renders one plain input" do
+      assert names_and_values(field_inputs("elixir")) == [{["post[tags]"], ["elixir"]}]
+      assert names_and_values(field_inputs(nil)) == [{["post[tags]"], [""]}]
+    end
   end
 end

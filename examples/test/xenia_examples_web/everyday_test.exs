@@ -8,6 +8,7 @@ defmodule XeniaExamplesWeb.EverydayTest do
 
   import ExUnit.CaptureLog
   import Phoenix.LiveViewTest
+  import Xenia.Test
 
   describe "the language" do
     test "comes from the locale cookie on the first page load", %{conn: conn} do
@@ -38,16 +39,7 @@ defmodule XeniaExamplesWeb.EverydayTest do
       {:ok, view, _html} = live(conn, ~p"/languages")
       view |> element("#locale-de") |> render_click()
 
-      props =
-        view
-        |> element("#stepper")
-        |> render()
-        |> LazyHTML.from_fragment()
-        |> LazyHTML.attribute("data-xenia-props")
-        |> hd()
-        |> Jason.decode!()
-
-      assert props["labels"] == %{
+      assert xenia_props(view, "stepper")["labels"] == %{
                "decrease" => "Weniger",
                "increase" => "Mehr",
                "reset" => "Zurücksetzen",

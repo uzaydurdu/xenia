@@ -91,6 +91,11 @@ defmodule Xenia.MonacoTest do
       assert LazyHTML.attribute(element, "phx-update") == ["ignore"]
     end
 
+    test "passes lazy to the container" do
+      assert LazyHTML.attribute(render_monaco(lazy: "visible"), "data-xenia-lazy") == ["visible"]
+      assert LazyHTML.attribute(render_monaco(), "data-xenia-lazy") == []
+    end
+
     # Apps that register the adapter under another name in createHooks()
     # can point the hook at it.
     test "supports a custom adapter registration name" do

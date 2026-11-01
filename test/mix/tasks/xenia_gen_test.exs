@@ -282,6 +282,24 @@ defmodule Mix.Tasks.Xenia.GenTest do
                ~s|<.heat_map id="heat-map" points={@points} title={@title} on_select="heat_map_select" />|
     end
 
+    test "with createHooks already in app.js, it says to add the adapter there" do
+      File.mkdir_p!("assets/js")
+
+      File.write!(
+        "assets/js/app.js",
+        "const liveSocket = new LiveSocket(\"/live\", Socket, {\n  hooks: {...colocatedHooks, ...Hooks, ...createHooks({})},\n})\n"
+      )
+
+      Mix.Tasks.Xenia.Gen.Component.run(~w(gauge level:integer))
+      printed = output()
+
+      assert printed =~ "add it to the\ncreateHooks({...}) your LiveSocket's hooks already spread"
+      assert printed =~ "createHooks({ Gauge: gauge })"
+
+      refute printed =~ "hooks: { ...colocatedHooks",
+             "no whole hooks line that would drop ...Hooks"
+    end
+
     test "the generated tag renders the adapter's container" do
       Mix.Tasks.Xenia.Gen.Component.run(~w(meter level:integer --module XeniaWeb.GenMeter))
       [] = compile("lib/xenia_web/components/meter.ex")

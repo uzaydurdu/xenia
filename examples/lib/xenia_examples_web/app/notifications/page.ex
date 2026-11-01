@@ -154,16 +154,27 @@ defmodule XeniaExamplesWeb.App.NotificationsPage do
       </li>
     </ul>
 
-    <h2 class="text-lg font-semibold">The code</h2>
-    <pre
-      phx-no-curly-interpolation
-      class="overflow-x-auto rounded-box border border-base-300 bg-base-100 p-4 text-sm"
-    >def handle_event("save", _params, socket) do
+    <h2 class="text-lg font-semibold">How it's made</h2>
+    <.snippet title="A message, in page.ex: Phoenix's put_flash" code={flash_snippet()} />
+    <.snippet title="How they close, in the layout" code={group_snippet()} />
+    """
+  end
+
+  # The code on the page: how this example is made.
+  defp flash_snippet,
+    do: ~S"""
+    def handle_event("save", _params, socket) do
       case Documents.save(socket.assigns.document) do
         {:ok, _} -> {:noreply, put_flash(socket, :success, gettext("Document saved successfully"))}
         {:error, _} -> {:noreply, put_flash(socket, :error, gettext("Could not save document"))}
       end
-    end</pre>
+    end
     """
-  end
+
+  defp group_snippet,
+    do: ~S"""
+    <%!-- Info and success close after `duration` ms, with a countdown around
+         the border; errors stay until closed. --%>
+    <.flash_group flash={@flash} shape="rounded" duration={5000} />
+    """
 end

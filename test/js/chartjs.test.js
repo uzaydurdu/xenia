@@ -294,6 +294,40 @@ test("new data updates the same chart; a new type rebuilds it, with setup each t
   ]);
 });
 
+// Several props that change in one LiveView patch reach the adapter in one
+// update; the adapter turns them into one redraw (scheduleRender), so the
+// core needs no update() callback for this (CLAUDE.md §4).
+test("several props changed in one update cause one redraw; an unchanged update causes none", async (t) => {
+  const { module, created } = fakeChartJs();
+  const chartjs = createChartjs({ load: () => module });
+  const { controller, container } = await mounted(t, chartjs, {
+    data: SALES,
+    options: { animation: false },
+  });
+  const chart = created[0];
+  const before = chart.updates;
+
+  container.setAttribute(
+    "data-xenia-props",
+    JSON.stringify({
+      data: { ...SALES, labels: ["Mar", "Apr"] },
+      options: { animation: false, responsive: false },
+      theme: "dark",
+    }),
+  );
+  controller.update();
+  await settle();
+  assert.equal(chart.updates - before, 1, "one redraw for three changed props");
+  assert.equal(created.length, 1, "on the same chart");
+  assert.deepEqual(chart.data.labels, ["Mar", "Apr"]);
+  assert.equal(chart.options.responsive, false);
+
+  // The same props again: nothing changed, nothing is drawn.
+  controller.update();
+  await settle();
+  assert.equal(chart.updates - before, 1);
+});
+
 test("the app's theme arrives through consumes; the tag's theme wins; false turns colors off", async (t) => {
   const { module, created } = fakeChartJs();
   const chartjs = createChartjs({ load: () => module });

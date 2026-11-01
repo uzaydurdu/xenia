@@ -183,9 +183,10 @@ destroy(picker) { picker.destroy() }
   teardown is async, mark the instance as destroyed at once and finish later.
 - **Don't assume `el` is still in the page, or that it's gone.** Both
   happen. Clean up with the references you kept.
-- **Your own async work:** a `fetch` or `setTimeout` started by the adapter
-  can finish after destroy. Check `ctx.isAlive()` before touching the
-  instance.
+- **Your own async work:** pass `ctx.signal` to `fetch` and to listeners
+  on `document` or `window`; Xenia aborts it at destroy, which cancels and
+  removes them. A `setTimeout` can still finish after destroy: check
+  `ctx.isAlive()` before touching the instance.
 
 ## 8. Register it, and declare a tag
 
@@ -432,6 +433,209 @@ the app folder (`use Xenia.Page`). On Phoenix 1.8, remove the `layout:`
 option that `mix surface.init` gives `surface_live_view`: Phoenix 1.8's
 `Layouts.app` takes its content as a slot, so LiveView can't use it as a
 layout.
+
+## Several props, one redraw
+
+The core calls one prop handler for each prop that changed, all in the same
+update. A library that redraws everything at once, such as a chart or a D3
+drawing, shouldn't redraw once per handler. Let the handlers record what
+changed, and redraw once with a microtask:
+
+```js
+function scheduleRedraw(chart, ctx) {
+  if (chart.redrawPending) return
+  chart.redrawPending = true
+  queueMicrotask(() => {
+    chart.redrawPending = false
+    if (ctx.isAlive()) chart.update()
+  })
+}
+
+export const chart = {
+  // mount and destroy as before
+  props: {
+    data(chart, data, ctx) { chart.data = data; scheduleRedraw(chart, ctx) },
+    options(chart, options, ctx) { chart.options = options; scheduleRedraw(chart, ctx) },
+  },
+}
+```
+
+All the handlers of one update run before the microtask, so three changed
+props cause one redraw. `ctx.isAlive()` skips it if the island was removed
+in between; after `ctx.remount()`, the new instance gets its props from
+`mount`. Xenia's Chart.js adapter does exactly this.
+
+## Large data: send what changed, as commands
+
+A prop is sent again whole whenever it changes. Xenia sends a component's
+props as one attribute, so a change to any prop sends all of them again.
+For a chart of 10,000 points (the examples app's `/large-data`, measured
+with its `measure-large-data.mjs`):
+
+| | Data as a prop | Data by commands |
+|---|---|---|
+| Add one point | 109 KB | 99 bytes |
+| Change `type` only | 109 KB | 208 bytes |
+
+The prop's share grows with the data; the command's doesn't. In the
+browser, Xenia's share is small: under half a millisecond to parse and
+compare those props. The library's redraw costs the same either way
+(Chart.js: about 30 ms for 10,000 points); for that, see the library's own
+performance advice.
+
+So for data that grows or changes a little at a time (a live chart, a log,
+an edited table), keep it out of the props:
+
+1. The server keeps the data. The props carry only settings.
+2. When the adapter starts, it emits `ready`. The server answers with one
+   command carrying all the data.
+3. After that, each change is a command with only what changed.
+4. A reconnect is a new LiveView process, which starts over. With
+   `consumes: ["connection"]`, the adapter emits `ready` again when it's
+   `"connected"`, and gets the new process's data.
+
+The examples app's `liveChart` extends the official Chart.js adapter that
+way:
+
+```js
+export const liveChart = {
+  ...chartjs,
+  consumes: [...chartjs.consumes, "connection"],
+
+  async mount(el, props, ctx) {
+    const instance = await chartjs.mount(el, props, ctx)
+    ctx.emit("ready", {})
+    return instance
+  },
+
+  props: {
+    ...chartjs.props,
+    connection(_instance, connection, ctx) {
+      if (connection === "connected") ctx.emit("ready", {})
+    },
+  },
+
+  events: { ...chartjs.events, ready: {} },
+
+  commands: {
+    ...chartjs.commands,
+    replace_points(instance, { labels, values }) { /* the whole series */ },
+    append_points(instance, { labels, values, max }) { /* just these */ },
+  },
+}
+```
+
+```elixir
+def handle_event("chart_ready", _params, socket) do
+  %{labels: labels, values: values} = socket.assigns
+  {:noreply, Xenia.push_to(socket, "live", "replace_points", %{labels: labels, values: values})}
+end
+
+def handle_event("add_point", _params, socket) do
+  {label, value} = next_point(socket)
+  {:noreply, Xenia.push_to(socket, "live", "append_points", %{labels: [label], values: [value]})}
+end
+```
+
+The terminal example uses the same channels: its output is a stream of
+`write` commands, which starts when the terminal reports `ready`.
+
+## Testing a page with an island
+
+`LiveViewTest` never runs JavaScript, so a test checks the server's side
+of the island: the props it renders, and what happens when the adapter's
+events arrive. `Xenia.Test` does that in the island's own terms:
+
+```elixir
+import Phoenix.LiveViewTest
+import Xenia.Test
+
+test "a click on a bar filters the table", %{conn: conn} do
+  {:ok, view, _html} = live(conn, ~p"/sales")
+  assert xenia_props(view, "sales")["type"] == "bar"
+
+  render_xenia_event(view, "sales", :click, %{"label" => "Tue"})
+  assert_xenia_command(view, "sales", "highlight", %{index: 1})
+end
+```
+
+- `xenia_props/2`: the island's props, decoded.
+- `render_xenia_event/4`: sends an event the way the adapter's `ctx.emit`
+  would, to the LiveView event the page bound. It raises if the page didn't
+  bind it.
+- `assert_xenia_command/5`: a command the server sent with `Xenia.push_to/4`.
+- `xenia_call/5`: like `ctx.call`; returns the `{:reply, map, socket}` map.
+
+The adapter itself, in the browser, is tested by a browser test (the
+examples app uses Playwright).
+
+## Typed adapters
+
+Xenia ships TypeScript declarations. `Adapter<Instance, Props, Events, Commands>`
+describes any adapter, for any library: the editor then knows what `ctx`
+offers, which props arrive, which events exist with which payload, and what
+each command receives. The library's own types (most npm packages ship them)
+describe the instance; Xenia never re-describes a library.
+
+In a `.js` file, a comment, with `// @ts-check` at the top:
+
+```js
+// @ts-check
+import Chart from "chart.js/auto"
+
+/** @type {import("xenia").Adapter<Chart, {labels: string[], values: number[]}, {click: {label: string}}>} */
+export const chart = {
+  mount(el, props, ctx) {
+    ctx.emit("click", { label: "Jan" })   // checked: a declared event, its payload
+    const canvas = el.appendChild(document.createElement("canvas"))
+    const data = { labels: props.labels, datasets: [{ data: props.values }] }
+    return new Chart(canvas, { type: "bar", data })
+  },
+  destroy(chart) {
+    chart.destroy()                       // chart is Chart.js's Chart
+  },
+}
+```
+
+Or the adapter as a `.ts` file: Phoenix's esbuild compiles it as it is.
+
+```ts
+import Chart from "chart.js/auto"
+import type { Adapter } from "xenia"
+
+type Props = { labels: string[]; values: number[] }
+export const chart: Adapter<Chart, Props, { click: { label: string } }> = { ... }
+```
+
+`ctx.emit("clik", ...)`, a wrong payload, or a handler for a prop that
+doesn't exist are then errors: `"clik"` is not assignable to `"click"`.
+
+- **Checking:** esbuild only strips the types. `tsc --noEmit` (in
+  `assets/`, with `npm install --save-dev typescript`) checks them.
+- **`assets/tsconfig.json`** (Phoenix generates one):
+  - remove `baseUrl`: TypeScript 7 refuses it, and `paths` work without it;
+  - add `"module": "esnext"` and `"moduleResolution": "bundler"`;
+  - with Xenia from Hex, `paths` needs two lines next to Phoenix's
+    `"*": ["../deps/*"]`, because that one doesn't see the
+    `"xenia/chartjs"` style of import. `mix xenia.install` adds them (also
+    with `--islands-only`); by hand:
+
+    ```json
+    "xenia": ["../deps/xenia/priv/types/xenia.d.ts"],
+    "xenia/*": ["../deps/xenia/priv/types/*.d.ts"]
+    ```
+- **Official adapters** come typed: `createChartjs({ load, pallete })` is an
+  error. To extend one, combine its types with yours:
+  `Adapter<ChartjsInstance, ChartjsProps, ChartjsEvents & { total: { sum: number } }>`,
+  from `import type { ... } from "xenia/chartjs"`.
+- **An adapter in the page** can be TypeScript too:
+  `<script :type={Phoenix.LiveView.ColocatedHook} name=".Chart" extension="ts">`.
+  Neither the editor nor `tsc` looks inside a `.ex` file; add
+  `"../_build/dev/phoenix-colocated/**/*.ts"` to `include` to check the
+  scripts LiveView writes out (errors then name those files).
+
+The examples app's `/typed` page is an adapter in TypeScript, checked by
+`npm run typecheck`.
 
 ## Things that save debugging time
 

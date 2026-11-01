@@ -19,7 +19,10 @@ mix check   # what CI runs
 - formatting, and compiling with warnings as errors;
 - the bundles;
 - the Elixir and JavaScript tests;
-- the Hex package and the docs.
+- the Hex package and the docs;
+- the TypeScript declarations in `priv/types`, against the fixtures in
+  `test/types` (`npm run types`). A fixture's `@ts-expect-error` marks a
+  mistake the types must catch.
 
 ## Browser tests
 

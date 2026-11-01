@@ -39,11 +39,10 @@
  *   error   %{source, message, code}
  *
  * Form field: with field={@form[:starts_on]} the value is submitted with the
- * form; "multiple"/"range" submit a JSON list string, e.g.
- * "[\"2026-11-01\",\"2026-11-07\"]", because the form value is one hidden
- * input. An Ecto {:array, _} field can't cast that string: decode it first
- * with Jason.decode/1 (not decode!, since the browser can send any string),
- * and treat anything that isn't a list as empty.
+ * form; "multiple"/"range" submit a list, e.g. ["2026-11-01", "2026-11-07"],
+ * which an Ecto {:array, :date} field casts directly. With no date picked
+ * they submit [""], which Ecto's cast turns into []. (Without Ecto, drop
+ * the "".)
  *
  * Import flatpickr's CSS once, e.g. in app.css:
  *   @import "../node_modules/flatpickr/dist/flatpickr.min.css";
@@ -136,7 +135,7 @@ export function createFlatpickr({ load: libraryImport } = {}) {
 
   function toDates(value, multi) {
     if (value == null || value === "") return [];
-    if (multi) return toList(value); // also decodes a submitted JSON list
+    if (multi) return toList(value);
     return Array.isArray(value) ? value.slice(0, 1) : [value];
   }
 

@@ -21,7 +21,7 @@ into Phoenix LiveView, and lets your folders define your pages.
 - [Quickstart](#quickstart)
 - [Writing an adapter](#writing-an-adapter)
 - [Official adapters](#official-adapters)
-- [More features](#more-features): [forms](#forms), [web components](#web-components), [files](#files), [app-wide values](#app-wide-values), [keyboard shortcuts](#keyboard-shortcuts), [loading and errors](#loading-and-errors), [adapters next to the page](#adapters-next-to-the-page)
+- [More features](#more-features): [forms](#forms), [web components](#web-components), [files](#files), [app-wide values](#app-wide-values), [keyboard shortcuts](#keyboard-shortcuts), [loading and errors](#loading-and-errors), [testing](#testing), [lazy islands](#lazy-islands), [large data](#large-data), [adapters next to the page](#adapters-next-to-the-page), [TypeScript](#typescript)
 - [Pages from folders](#pages-from-folders)
 - [Generators](#generators)
 - [Configuration and troubleshooting](#configuration-and-troubleshooting)
@@ -105,6 +105,11 @@ mix phx.server
 app folder, Xenia's hooks, and flash messages that stack and close by
 themselves. It prints each change, and leaves alone any file you've already
 changed.
+
+**In an existing app**, run `mix xenia.install --islands-only` instead. It
+adds only Xenia's hooks to `app.js` (next to the hooks you already have),
+`import Xenia.Component`, and `:xenia` in the formatter, and leaves your
+theme, layout, routes and home page alone.
 
 ## Quickstart
 
@@ -210,6 +215,7 @@ the container around it belongs to LiveView.
 | `call(name, payload)` | send an event, get a Promise of the server's `{:reply, map, socket}` |
 | `remount()` | rebuild the instance, for settings a library can't change in place |
 | `isAlive()` | false once destroyed; check it after your own async work |
+| `signal` | an `AbortSignal` aborted at destroy: pass it to `fetch` and to listeners on `document` |
 | `setFormValue(value)` | write the component's form value ([forms](#forms)) |
 | `upload(name, files)` | send files through a LiveView upload ([files](#files)) |
 | `id`, `hook` | the component's id; the raw LiveView hook |
@@ -267,6 +273,8 @@ A component with `field={@form[:code]}` is a form field: submitted with the
 form, part of `phx-change`, restored after a reconnect, with errors like
 `<.input>`. The official Monaco, Tiptap, flatpickr, Tom Select and Shoelace
 rating adapters handle it; your own adapter calls `ctx.setFormValue(value)`.
+A list (Tom Select's `multiple`, a flatpickr range) is submitted as a list,
+so an Ecto `{:array, _}` field casts it directly.
 
 ### Web components
 
@@ -282,6 +290,9 @@ LiveView upload (`allow_upload` and `<.live_file_input>` on the page).
 Publish a value once, and every adapter with `consumes: ["theme"]` gets it as a
 prop: from the browser with `setProvider("theme", value)`, or from the server
 with `<Xenia.Provider.provider name="locale" value={@locale} />`.
+`consumes: ["connection"]` gives an island `"connected"` or `"disconnected"`,
+from its own LiveView: an editor can turn read-only while its edits can't
+reach the server.
 
 ### Keyboard shortcuts
 
@@ -298,11 +309,52 @@ refused.
 </.monaco>
 ```
 
+### Testing
+
+`import Xenia.Test` in a LiveView test: `xenia_props/2` reads an island's
+props, `render_xenia_event/4` sends its events, `assert_xenia_command/5`
+checks the server's commands, and `xenia_call/5` returns a call's reply.
+See [Wrapping a library](guides/wrapping-a-library.md#testing-a-page-with-an-island).
+
+### Lazy islands
+
+`lazy="visible"` starts an island only when it scrolls near the screen.
+With [code splitting](#code-splitting), its library downloads only then too.
+Commands sent before that wait for it, and it starts with the latest props.
+
+```heex
+<.monaco id="editor" value={@code} lazy="visible">
+  <:loading>The editor starts when you scroll here.</:loading>
+</.monaco>
+```
+
+### Large data
+
+A prop is sent again whole whenever it changes. For data that grows a
+little at a time, send the changes as commands: a 10,000-point chart's new
+point is 99 bytes as a command, and 109 KB as a prop. See
+[Wrapping a library](guides/wrapping-a-library.md#large-data-send-what-changed-as-commands).
+
 ### Adapters next to the page
 
 An adapter only one page uses can live in that page's module, in a LiveView
 colocated hook (`adapter={colocated(".Chart")}`), with no change to `app.js`.
 See [Wrapping a library](guides/wrapping-a-library.md).
+
+### TypeScript
+
+Xenia ships types. An adapter for any library, in a `.ts` file (Phoenix's
+esbuild compiles it as it is) or in JavaScript with a comment, gets a typed
+`ctx`, props, events and commands; the library's own types describe its
+instance:
+
+```js
+/** @type {import("xenia").Adapter<Chart, {labels: string[]}, {click: {label: string}}>} */
+```
+
+The official adapters are typed too. See
+[Wrapping a library](guides/wrapping-a-library.md#typed-adapters) for the
+`tsconfig.json` setup.
 
 ## Pages from folders
 
@@ -350,6 +402,32 @@ mix xenia.gen.layout "(auth)" --persistent              # a layout.ex and persis
 ```
 
 ## Configuration and troubleshooting
+
+### Code splitting
+
+By default, esbuild puts every library into `app.js`, so every page
+downloads all of them. With code splitting, each `load: () => import(...)`
+becomes its own file, which a page fetches only when one of its islands
+needs it. In the examples app, a page now downloads 0.59 MB of JavaScript
+up front instead of 7.9 MB (production build).
+
+Add this to your esbuild profile's `args` in `config/config.exs`:
+
+```
+--splitting --format=esm --chunk-names=chunks/[name]-[hash]
+```
+
+and load `app.js` as a module in `root.html.heex`:
+
+```heex
+<script defer phx-track-static type="module" src={~p"/assets/js/app.js"}></script>
+```
+
+A library that an adapter imports at the top of a file
+(`import Chart from "chart.js/auto"`) stays in the first download. Using
+Monaco? Its workers need a profile of their own: see `Xenia.Adapters.Monaco`.
+
+### Other settings
 
 - **Custom binding prefix:** if your `LiveSocket` uses one, set the same:
   `config :xenia, binding_prefix: "pop-"`.

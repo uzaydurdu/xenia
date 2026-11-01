@@ -62,6 +62,9 @@ defmodule XeniaExamplesWeb.App.TwoEditorsPage do
         <pre id={"server-#{id}"} class="rounded-box bg-base-200 p-3 text-sm whitespace-pre-wrap">{code}</pre>
       </section>
     </div>
+    <h2 class="text-lg font-semibold">How it's made</h2>
+    <.snippet title="The tags, in page.ex: each picks its own event" code={tags_snippet()} />
+    <.snippet title="The server, in page.ex" code={server_snippet()} />
     """
   end
 
@@ -71,4 +74,23 @@ defmodule XeniaExamplesWeb.App.TwoEditorsPage do
       {"editor-b", "Editor B", assigns.b, assigns.version_b, "b_changed"}
     ]
   end
+
+  # The code on the page: how this example is made.
+  defp tags_snippet,
+    do: ~S"""
+    <.monaco id="editor-a" value={@a} version={@version_a} on_change="a_changed" />
+    <.monaco id="editor-b" value={@b} version={@version_b} on_change="b_changed" />
+    """
+
+  defp server_snippet,
+    do: ~S"""
+    def handle_event("a_changed", %{"value" => code, "version" => version}, socket),
+      do: {:noreply, assign(socket, a: code, version_a: version)}
+
+    def handle_event("b_changed", %{"value" => code, "version" => version}, socket),
+      do: {:noreply, assign(socket, b: code, version_b: version)}
+
+    # A command reaches only the editor with that id
+    Xenia.push_to(socket, "editor-b", "insert", %{text: "inserted into editor-b\n"})
+    """
 end

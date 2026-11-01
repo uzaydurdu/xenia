@@ -86,6 +86,8 @@ defmodule XeniaExamplesWeb do
       import XeniaExamplesWeb.CoreComponents
       # The English/German selector (see XeniaExamplesWeb.Locale)
       import XeniaExamplesWeb.Locale, only: [locale_switcher: 1]
+      # <.snippet>: how an example is made, on its page
+      import XeniaExamplesWeb.Snippets
 
       # Xenia: <.xenia> and colocated/1, the tags declared in
       # components/islands.ex, and the built-in <.monaco>

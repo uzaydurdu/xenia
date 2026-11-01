@@ -93,6 +93,45 @@ defmodule XeniaExamplesWeb.App.LanguagesPage do
     <p class="text-sm opacity-70">
       Server locale: <code id="server-locale">{@locale}</code>
     </p>
+    <h2 class="text-lg font-semibold">How it's made</h2>
+    <.snippet title="The words, translated on the server, in page.ex" code={page_snippet()} />
+    <.snippet
+      title="Numbers formatted in the browser, with the app's locale"
+      code={adapter_snippet()}
+    />
     """
   end
+
+  # The code on the page: how this example is made.
+  defp page_snippet,
+    do: ~S"""
+    <.locale_switcher locale={@locale} />
+    <.xenia id="stepper" adapter="Stepper" props={%{labels: @t.widget, price: 12.5}} />
+
+    # Words in an assign, so a new language re-renders them
+    defp assign_texts(socket),
+      do: assign(socket, t: %{widget: %{increase: gettext("More"), decrease: gettext("Fewer")}})
+
+    def handle_event("set_locale", %{"locale" => locale}, socket),
+      do: {:noreply, socket |> Locale.put(locale) |> assign_texts()}
+    """
+
+  defp adapter_snippet,
+    do: ~S"""
+    // The layout publishes it: <Xenia.Provider.provider name="locale" value={@locale} />
+
+    export const stepper = {
+      consumes: ["locale"], // arrives as a `locale` prop
+      props: {
+        labels(instance, labels) { /* new words, same widget */ },
+        locale(instance, locale) {
+          instance.money = new Intl.NumberFormat(locale === "de" ? "de-DE" : "en-US", {
+            style: "currency",
+            currency: "EUR",
+          })
+        },
+      },
+      // ...
+    }
+    """
 end

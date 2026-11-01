@@ -52,6 +52,49 @@ defmodule XeniaExamplesWeb.App.Adapters.CalendarPage do
 
     <p id="opened">{@opened || "No event opened."}</p>
     <p id="count">The server has {length(@events)} events.</p>
+    <h2 class="text-lg font-semibold">How it's made</h2>
+    <.snippet title="The tag and the server, in page.ex" code={page_snippet()} />
+    <.snippet title="The setup, once, in assets/js" code={setup_snippet()} />
     """
   end
+
+  # The code on the page: how this example is made.
+  defp page_snippet,
+    do: ~S"""
+    <.full_calendar
+      id="calendar"
+      events={@events}
+      on_date_click="day_clicked"
+      on_event_click="event_clicked"
+    />
+
+    def handle_event("day_clicked", %{"date" => date}, socket), do: ...
+
+    # The buttons: FullCalendar's own prev, next and today, as commands
+    Xenia.push_to(socket, "calendar", "next")
+    """
+
+  defp setup_snippet,
+    do: ~S"""
+    import { createFullCalendar } from "xenia/fullcalendar"
+
+    export const fullcalendar = createFullCalendar({
+      load: async () => {
+        const [core, dayGrid, timeGrid, list, interaction] = await Promise.all([
+          import("@fullcalendar/core"),
+          import("@fullcalendar/daygrid"),
+          import("@fullcalendar/timegrid"),
+          import("@fullcalendar/list"),
+          import("@fullcalendar/interaction"),
+        ])
+        return {
+          Calendar: core.Calendar,
+          plugins: [dayGrid.default, timeGrid.default, list.default, interaction.default],
+        }
+      },
+    })
+
+    // app.js
+    createHooks({ FullCalendar: fullcalendar })
+    """
 end

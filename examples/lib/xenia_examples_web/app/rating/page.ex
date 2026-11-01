@@ -41,6 +41,42 @@ defmodule XeniaExamplesWeb.App.RatingPage do
         Use {if @max == 5, do: 10, else: 5} stars
       </button>
     </div>
+    <h2 class="text-lg font-semibold">How it's made</h2>
+    <.snippet title="The tag, in page.ex" code={tag_snippet()} />
+    <.snippet
+      title="The adapter, in assets/js/islands/rating.js: no prop handlers at all"
+      code={adapter_snippet()}
+    />
     """
   end
+
+  # The code on the page: how this example is made.
+  defp tag_snippet,
+    do: ~S"""
+    <.rating id="stars" value={@value} max={@max} on_change="rated" />
+
+    # components/islands.ex
+    component :rating, adapter: "Rating" do
+      prop :value, :integer, default: 0
+      prop :max, :integer, default: 5
+      event :change
+    end
+    """
+
+  defp adapter_snippet,
+    do: ~S"""
+    import "@shoelace-style/shoelace/dist/components/rating/rating.js"
+
+    // A web component: Xenia sets each prop on it (node.max = 10), which is
+    // exactly right, so the adapter has no `props`.
+    export const rating = {
+      mount(el, props, ctx) {
+        const node = Object.assign(document.createElement("sl-rating"), props)
+        node.addEventListener("sl-change", () => ctx.emit("change", { value: node.value }))
+        return el.appendChild(node)
+      },
+      destroy: (node) => node.remove(),
+      events: { change: {} },
+    }
+    """
 end

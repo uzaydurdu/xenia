@@ -10,6 +10,7 @@
 import { test, before, after } from "node:test"
 import assert from "node:assert/strict"
 import { chromium } from "playwright"
+import { isBrowserError } from "./console.mjs"
 
 const BASE = process.env.E2E_URL ?? "http://localhost:4002"
 const SETTLE = 400
@@ -23,7 +24,7 @@ async function open(path, { settle = SETTLE } = {}) {
   const page = await browser.newPage()
   const problems = []
   page.on("pageerror", (e) => problems.push(e.message))
-  page.on("console", (m) => { if (m.type() === "error") problems.push(m.text()) })
+  page.on("console", (m) => { if (isBrowserError(m)) problems.push(m.text()) })
   await page.goto(BASE + path)
   await connected(page, settle)
   return { page, problems }
@@ -206,6 +207,24 @@ test("leaving a page while its islands are still loading: no errors, nothing dra
     "no on_crash for an island that's gone",
   )
   await page.evaluate(() => window.liveSocket.disableLatencySim())
+  assert.deepEqual(problems, [])
+  await page.close()
+})
+
+test("a library's overlay outside the island (flatpickr's calendar on document.body) goes with it", async () => {
+  const { page, problems } = await open("/adapters/flatpickr")
+  const calendars = () => page.locator("body > .flatpickr-calendar").count()
+  await page.waitForSelector("#trip input", { state: "attached" })
+  const onPage = await calendars()
+  assert.ok(onPage >= 1, "flatpickr put its calendar on document.body")
+
+  for (let i = 0; i < 5; i++) {
+    await go(page, "#sidebar a[href='/chart']", "/chart")
+    assert.equal(await calendars(), 0, `navigation ${i}: the calendar was removed with the island`)
+    await go(page, "#sidebar a[href='/adapters/flatpickr']", "/adapters/flatpickr")
+    await page.waitForSelector("#trip input", { state: "attached" })
+    assert.equal(await calendars(), onPage, `navigation ${i}: one set of calendars, not more`)
+  }
   assert.deepEqual(problems, [])
   await page.close()
 })

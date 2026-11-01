@@ -37,6 +37,30 @@ defmodule XeniaExamplesWeb.App.Adapters.ShoelaceRatingPage do
     </div>
 
     <button id="reset" phx-click="reset" class="btn btn-sm">Reset to 0</button>
+    <h2 class="text-lg font-semibold">How it's made</h2>
+    <.snippet title="The tags and the server, in page.ex" code={page_snippet()} />
+    <.snippet title="The setup, once, in assets/js" code={setup_snippet()} />
     """
   end
+
+  # The code on the page: how this example is made.
+  defp page_snippet,
+    do: ~S"""
+    <.shoelace_rating id="stars" value={@value} precision={0.5} label="Your rating" on_change="rated" />
+    <.shoelace_rating id="average" value={4.5} precision={0.5} readonly label="Average" />
+
+    def handle_event("rated", %{"value" => value}, socket), do: {:noreply, assign(socket, value: value)}
+    """
+
+  defp setup_snippet,
+    do: ~S"""
+    import { createShoelaceRating } from "xenia/shoelace-rating"
+
+    export const shoelaceRating = createShoelaceRating({
+      load: () => import("@shoelace-style/shoelace/dist/components/rating/rating.js"),
+    })
+
+    // app.js
+    createHooks({ ShoelaceRating: shoelaceRating })
+    """
 end

@@ -4,24 +4,76 @@
   "private": true,
   "main": "./priv/static/xenia.esm.js",
   "module": "./priv/static/xenia.esm.js",
+  "types": "./priv/types/xenia.d.ts",
   "exports": {
-    ".": "./priv/static/xenia.esm.js",
-    "./chartjs": "./priv/static/xenia-chartjs.esm.js",
-    "./d3": "./priv/static/xenia-d3.esm.js",
-    "./flatpickr": "./priv/static/xenia-flatpickr.esm.js",
-    "./fullcalendar": "./priv/static/xenia-fullcalendar.esm.js",
-    "./leaflet": "./priv/static/xenia-leaflet.esm.js",
-    "./monaco": "./priv/static/xenia-monaco.esm.js",
-    "./monaco-diff": "./priv/static/xenia-monaco-diff.esm.js",
-    "./shoelace-rating": "./priv/static/xenia-shoelace-rating.esm.js",
-    "./sortablejs": "./priv/static/xenia-sortablejs.esm.js",
-    "./tabulator": "./priv/static/xenia-tabulator.esm.js",
-    "./tiptap": "./priv/static/xenia-tiptap.esm.js",
-    "./tom-select": "./priv/static/xenia-tom-select.esm.js",
-    "./uppy": "./priv/static/xenia-uppy.esm.js",
-    "./wavesurfer": "./priv/static/xenia-wavesurfer.esm.js",
-    "./wavesurfer-multitrack": "./priv/static/xenia-wavesurfer-multitrack.esm.js",
-    "./xterm": "./priv/static/xenia-xterm.esm.js"
+    ".": {
+      "types": "./priv/types/xenia.d.ts",
+      "default": "./priv/static/xenia.esm.js"
+    },
+    "./chartjs": {
+      "types": "./priv/types/chartjs.d.ts",
+      "default": "./priv/static/xenia-chartjs.esm.js"
+    },
+    "./d3": {
+      "types": "./priv/types/d3.d.ts",
+      "default": "./priv/static/xenia-d3.esm.js"
+    },
+    "./flatpickr": {
+      "types": "./priv/types/flatpickr.d.ts",
+      "default": "./priv/static/xenia-flatpickr.esm.js"
+    },
+    "./fullcalendar": {
+      "types": "./priv/types/fullcalendar.d.ts",
+      "default": "./priv/static/xenia-fullcalendar.esm.js"
+    },
+    "./leaflet": {
+      "types": "./priv/types/leaflet.d.ts",
+      "default": "./priv/static/xenia-leaflet.esm.js"
+    },
+    "./monaco": {
+      "types": "./priv/types/monaco.d.ts",
+      "default": "./priv/static/xenia-monaco.esm.js"
+    },
+    "./monaco-diff": {
+      "types": "./priv/types/monaco-diff.d.ts",
+      "default": "./priv/static/xenia-monaco-diff.esm.js"
+    },
+    "./shoelace-rating": {
+      "types": "./priv/types/shoelace-rating.d.ts",
+      "default": "./priv/static/xenia-shoelace-rating.esm.js"
+    },
+    "./sortablejs": {
+      "types": "./priv/types/sortablejs.d.ts",
+      "default": "./priv/static/xenia-sortablejs.esm.js"
+    },
+    "./tabulator": {
+      "types": "./priv/types/tabulator.d.ts",
+      "default": "./priv/static/xenia-tabulator.esm.js"
+    },
+    "./tiptap": {
+      "types": "./priv/types/tiptap.d.ts",
+      "default": "./priv/static/xenia-tiptap.esm.js"
+    },
+    "./tom-select": {
+      "types": "./priv/types/tom-select.d.ts",
+      "default": "./priv/static/xenia-tom-select.esm.js"
+    },
+    "./uppy": {
+      "types": "./priv/types/uppy.d.ts",
+      "default": "./priv/static/xenia-uppy.esm.js"
+    },
+    "./wavesurfer": {
+      "types": "./priv/types/wavesurfer.d.ts",
+      "default": "./priv/static/xenia-wavesurfer.esm.js"
+    },
+    "./wavesurfer-multitrack": {
+      "types": "./priv/types/wavesurfer-multitrack.d.ts",
+      "default": "./priv/static/xenia-wavesurfer-multitrack.esm.js"
+    },
+    "./xterm": {
+      "types": "./priv/types/xterm.d.ts",
+      "default": "./priv/static/xenia-xterm.esm.js"
+    }
   },
   "peerDependencies": {
     "@fullcalendar/core": "^6.1.0",
@@ -88,9 +140,11 @@
     }
   },
   "devDependencies": {
-    "jsdom": "29.1.1"
+    "jsdom": "29.1.1",
+    "typescript": "7.0.2"
   },
   "scripts": {
-    "test": "node --test test/js/*.js"
+    "test": "node --test test/js/*.js",
+    "types": "tsc -p test/types"
   }
 }

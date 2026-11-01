@@ -9,6 +9,7 @@
 import { test, before, after } from "node:test"
 import assert from "node:assert/strict"
 import { chromium } from "playwright"
+import { isBrowserError } from "./console.mjs"
 
 const BASE = process.env.E2E_URL ?? "http://localhost:4002"
 const SETTLE = 300
@@ -23,7 +24,7 @@ async function open(path, options = {}) {
   const page = await context.newPage()
   const problems = []
   page.on("pageerror", (e) => problems.push(e.message))
-  page.on("console", (m) => { if (m.type() === "error") problems.push(m.text()) })
+  page.on("console", (m) => { if (isBrowserError(m)) problems.push(m.text()) })
   await page.goto(BASE + path)
   await connected(page)
   return { page, problems, context, close: () => context.close() }

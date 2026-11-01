@@ -45,6 +45,7 @@ New to Xenia? Open these four, in order. Each takes a few minutes:
 | **Rating** | A web component (Shoelace), with no prop code at all. | [`app/rating`](lib/xenia_examples_web/app/rating) |
 | **Theme** | Islands that follow the app's light and dark mode. | [`app/theme`](lib/xenia_examples_web/app/theme) |
 | **Loading and errors** | What an island shows while it loads, and when it breaks: `<:loading>`, `<:error>`, `on_crash` and a retry. | [`app/loading`](lib/xenia_examples_web/app/loading) |
+| **Lazy islands** | An editor below the fold with `lazy="visible"`: it starts, and Monaco downloads, only when you scroll to it. A command sent earlier waits for it. | [`app/lazy`](lib/xenia_examples_web/app/lazy) |
 | **Island in a page** | An adapter that lives inside the page that uses it. | [`app/colocated`](lib/xenia_examples_web/app/colocated) |
 | **Two editors** | Two islands of one kind on a page: each reports to its own event, and a command reaches only one. | [`app/two-editors`](lib/xenia_examples_web/app/two-editors) |
 | **Tabs** | Two pages that share one LiveView and its state. | [`app/tabs`](lib/xenia_examples_web/app/tabs) |

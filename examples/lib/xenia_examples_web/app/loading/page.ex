@@ -74,6 +74,41 @@ defmodule XeniaExamplesWeb.App.LoadingPage do
     </.xenia>
 
     <p id="crash-report">{@crash || "No crash reported yet."}</p>
+    <h2 class="text-lg font-semibold">How it's made</h2>
+    <.snippet title="The slots, in page.ex: no adapter code" code={slots_snippet()} />
+    <.snippet
+      title="The adapter, in assets/js/islands/slow.js: an async mount"
+      code={adapter_snippet()}
+    />
     """
   end
+
+  # The code on the page: how this example is made.
+  defp slots_snippet,
+    do: ~S"""
+    <.xenia id="broken" adapter="Slow" props={%{delay: 600}} on_crash="crashed">
+      <:loading>Loading…</:loading>
+      <:error>
+        This island couldn't start.
+        <button type="button" data-xenia-retry>Try again</button>
+      </:error>
+    </.xenia>
+
+    # The server hears about a crash
+    def handle_event("crashed", %{"id" => id, "phase" => phase, "message" => message}, socket),
+      do: {:noreply, assign(socket, crash: "#{id} crashed in #{phase}: #{message}")}
+    """
+
+  defp adapter_snippet,
+    do: ~S"""
+    export const slow = {
+      // While the Promise is pending, <:loading> shows. If it rejects,
+      // <:error> shows instead.
+      async mount(el, props) {
+        await new Promise((resolve) => setTimeout(resolve, props.delay))
+        return el.appendChild(document.createElement("div"))
+      },
+      destroy: (box) => box.remove(),
+    }
+    """
 end

@@ -104,6 +104,10 @@ defmodule XeniaExamplesWeb.App.Adapters.ChartjsPage do
     />
 
     <p id="total">{if @total, do: "The adapter reports a total of #{@total}."}</p>
+    <h2 class="text-lg font-semibold">How it's made</h2>
+    <.snippet title="The tag and the server, in page.ex" code={page_snippet()} />
+    <.snippet title="Configured once, in assets/js/islands/chartjs.js" code={setup_snippet()} />
+    <.snippet title="Extended by spreading: a `total` event" code={extend_snippet()} />
     """
   end
 
@@ -113,4 +117,51 @@ defmodule XeniaExamplesWeb.App.Adapters.ChartjsPage do
       datasets: [%{label: "Sales", data: sales}, %{label: "Costs", data: costs}]
     }
   end
+
+  # The code on the page: how this example is made.
+  defp page_snippet,
+    do: ~S"""
+    <.chartjs id="official" type={@type} data={@data} on_point_click="point_clicked" />
+
+    def handle_event("point_clicked", %{"label" => label, "value" => value}, socket), do: ...
+
+    # Commands the official adapter has
+    Xenia.push_to(socket, "official", "highlight", %{index: 2})
+    Xenia.push_to(socket, "official", "toggle_dataset", %{index: 1})
+    """
+
+  defp setup_snippet,
+    do: ~S"""
+    import { createChartjs } from "xenia/chartjs"
+
+    export const chartjs = createChartjs({
+      load: () => import("chart.js/auto"),
+      plugins: [plotBackground],       // any Chart.js plugin
+      options: { animation: false },   // defaults for every chart
+      setup(chart) {                   // runs for each new chart
+        chart.canvas.setAttribute("role", "img")
+      },
+    })
+
+    // app.js
+    createHooks({ ChartJS: chartjs })
+    """
+
+  defp extend_snippet,
+    do: ~S"""
+    export const revenueChart = {
+      ...chartjs,
+      props: {
+        ...chartjs.props,
+        data(instance, data, ctx) {
+          chartjs.props.data(instance, data, ctx)
+          ctx.emit("total", { total: sum(data) })
+        },
+      },
+      events: { ...chartjs.events, total: {} },
+    }
+
+    // page.ex
+    <.xenia id="revenue" adapter="RevenueChart" props={%{type: "line", data: @data}} events={%{total: "total"}} />
+    """
 end

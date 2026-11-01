@@ -12,6 +12,13 @@ import { jsonEqual } from "./props.js";
 const store = new Map();
 
 /**
+ * Xenia's own value: each island's LiveView connection, "connected" or
+ * "disconnected". Not in the store (the island's hook sets it, see
+ * adapterHook), so it can't be published.
+ */
+export const CONNECTION = "connection";
+
+/**
  * Find an existing provider entry.
  * If it doesn't exist yet, create an empty one.
  */
@@ -58,6 +65,13 @@ function prune(name, provider) {
  * when that value actually changes.
  */
 export function setProvider(name, value) {
+  if (name === CONNECTION) {
+    console.warn(
+      `[Xenia] "${CONNECTION}" is set by Xenia for each island; it can't be published`,
+    );
+    return;
+  }
+
   const provider = entry(name);
 
   // Same value? Nothing needs updating.

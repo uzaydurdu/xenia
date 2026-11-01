@@ -163,7 +163,7 @@ defmodule Mix.Tasks.Xenia.InstallTest do
 
     refute printed =~ "* updating"
     refute printed =~ "* creating"
-    assert length(Regex.scan(~r/\* skipping/, printed)) == 12
+    assert length(Regex.scan(~r/\* skipping/, printed)) == 13
   end
 
   test "an app set up with Surface: Xenia's hooks join Surface's" do
@@ -208,6 +208,76 @@ defmodule Mix.Tasks.Xenia.InstallTest do
     assert printed =~ "* skipping #{path}: doesn't check Phoenix's home page"
   end
 
+  # Every file in the app, with its contents.
+  defp snapshot do
+    for f <- Path.wildcard("**/*", match_dot: true),
+        File.regular?(f),
+        into: %{},
+        do: {f, File.read!(f)}
+  end
+
+  describe "--islands-only, for an existing app" do
+    test "changes only app.js, the web module and .formatter.exs" do
+      before = snapshot()
+      Mix.Tasks.Xenia.Install.run(@args ++ ["--islands-only"])
+      printed = output()
+      now = snapshot()
+
+      changed = for {f, content} <- now, before[f] != content, do: f
+
+      assert Enum.sort(changed) == [
+               ".formatter.exs",
+               "assets/js/app.js",
+               "assets/tsconfig.json",
+               "lib/pristine_web.ex"
+             ]
+
+      js = File.read!("assets/js/app.js")
+      assert js =~ "hooks: {...colocatedHooks, ...createHooks({})},"
+      assert js =~ ~s{setProvider("theme", document.documentElement.dataset.theme ?? "light")}
+      assert_valid_js(js)
+
+      assert printed =~ "Done: the app can host JavaScript islands."
+      assert printed =~ "--splitting --format=esm", "the code-splitting steps, printed"
+      refute printed =~ "creating"
+      refute printed =~ "by hand"
+    end
+
+    test "keeps the app's own hooks, and running it twice changes nothing" do
+      js = File.read!("assets/js/app.js")
+
+      File.write!(
+        "assets/js/app.js",
+        String.replace(js, "hooks: {...colocatedHooks},", "hooks: {...colocatedHooks, ...Hooks},")
+      )
+
+      Mix.Tasks.Xenia.Install.run(@args ++ ["--islands-only"])
+      _ = output()
+
+      assert File.read!("assets/js/app.js") =~
+               "hooks: {...colocatedHooks, ...Hooks, ...createHooks({})},"
+
+      before = snapshot()
+      Mix.Tasks.Xenia.Install.run(@args ++ ["--islands-only"])
+      printed = output()
+
+      assert snapshot() == before
+      assert length(Regex.scan(~r/\* skipping/, printed)) == 4
+    end
+
+    test "a full install afterwards still sets up the rest" do
+      Mix.Tasks.Xenia.Install.run(@args ++ ["--islands-only"])
+      _ = output()
+
+      Mix.Tasks.Xenia.Install.run(@args)
+      printed = output()
+
+      assert printed =~ "* creating lib/pristine_web/app/page.ex"
+      assert File.read!("assets/css/app.css") =~ ".xenia-grid {"
+      assert printed =~ "* skipping assets/js/app.js: already imports Xenia"
+    end
+  end
+
   # Node parses `source` as an ES module, without running it or resolving
   # its imports.
   defp assert_valid_js(source) do
@@ -232,6 +302,79 @@ defmodule Mix.Tasks.Xenia.InstallTest do
 
     # The other steps still ran.
     assert File.read!(".formatter.exs") =~ ":xenia"
+  end
+
+  describe "assets/tsconfig.json" do
+    # Phoenix's tsconfig has // comments; without them it's JSON.
+    defp tsconfig do
+      "assets/tsconfig.json"
+      |> File.read!()
+      |> String.split("\n")
+      |> Enum.reject(&String.starts_with?(String.trim_leading(&1), "//"))
+      |> Enum.join("\n")
+      |> Jason.decode!()
+    end
+
+    # Phoenix's "*": ["../deps/*"] alone doesn't find "xenia/chartjs"
+    # (TypeScript doesn't read package.json "exports" through it).
+    test "gets the paths to Xenia's types, next to Phoenix's" do
+      Mix.Tasks.Xenia.Install.run(@args)
+      printed = output()
+
+      paths = tsconfig()["compilerOptions"]["paths"]
+      assert paths["*"] == ["../deps/*"]
+      assert [xenia] = paths["xenia"]
+      assert [adapters] = paths["xenia/*"]
+
+      # Relative to assets/, they reach this checkout's declarations.
+      assert File.exists?(Path.join("assets", xenia))
+      assert File.exists?(Path.join("assets", String.replace(adapters, "*", "chartjs")))
+      assert xenia =~ ~r{priv/types/xenia\.d\.ts$}
+
+      assert printed =~
+               ~s|* updating assets/tsconfig.json: Xenia's types, for "xenia" and "xenia/<adapter>"|
+
+      assert printed =~ ~s|(for TypeScript 7, also remove "baseUrl")|
+    end
+
+    test "other paths the app added are kept" do
+      File.write!(
+        "assets/tsconfig.json",
+        ~s({"compilerOptions": {"paths": {\n  "*": ["../deps/*"],\n  "~/*": ["./js/*"]\n}}}\n)
+      )
+
+      Mix.Tasks.Xenia.Install.run(@args ++ ["--islands-only"])
+      _ = output()
+
+      paths = tsconfig()["compilerOptions"]["paths"]
+      assert Map.keys(paths) |> Enum.sort() == ["*", "xenia", "xenia/*", "~/*"]
+      refute File.read!("assets/tsconfig.json") =~ "baseUrl"
+    end
+
+    test "a tsconfig without Phoenix's paths gets the lines printed, not edited" do
+      File.write!("assets/tsconfig.json", ~s({"compilerOptions": {"strict": true}}\n))
+
+      Mix.Tasks.Xenia.Install.run(@args ++ ["--islands-only"])
+      printed = output()
+
+      assert File.read!("assets/tsconfig.json") == ~s({"compilerOptions": {"strict": true}}\n)
+
+      assert printed =~
+               ~s|by hand  assets/tsconfig.json: for Xenia's TypeScript types, add to "paths"|
+
+      assert printed =~ ~s("xenia/*": [)
+    end
+
+    # Phoenix says the file can be deleted: then there's nothing to do.
+    test "an app without a tsconfig is fine" do
+      File.rm!("assets/tsconfig.json")
+
+      Mix.Tasks.Xenia.Install.run(@args ++ ["--islands-only"])
+      printed = output()
+
+      assert printed =~ "* skipping assets/tsconfig.json: none, so no TypeScript paths to add"
+      refute printed =~ "by hand"
+    end
   end
 
   test "an app made with Gettext keeps its translated close label" do

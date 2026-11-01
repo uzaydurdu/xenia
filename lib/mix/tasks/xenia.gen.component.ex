@@ -95,11 +95,7 @@ defmodule Mix.Tasks.Xenia.Gen.Component do
 
     Gen.info("""
 
-    Register the adapter in assets/js/app.js:
-
-        import { #{component.js} } from "./#{component.name}_adapter"
-
-        hooks: { ...colocatedHooks, ...createHooks({ #{component.adapter}: #{component.js} }) },
+    #{registration(component)}
 
     Import the tag where you use it, or in html_helpers in #{web.path}.ex:
 
@@ -109,6 +105,36 @@ defmodule Mix.Tasks.Xenia.Gen.Component do
 
         #{usage(component)}
     """)
+  end
+
+  # How to register the adapter. An app.js that already calls createHooks
+  # (mix xenia.install writes one) only needs the new entry in it; a whole
+  # hooks line pasted there would drop the hooks the app already spreads.
+  defp registration(component) do
+    import_line = ~s|import { #{component.js} } from "./#{component.name}_adapter"|
+    entry = "#{component.adapter}: #{component.js}"
+
+    message =
+      if File.exists?("assets/js/app.js") and File.read!("assets/js/app.js") =~ "createHooks(" do
+        """
+        Register the adapter in assets/js/app.js: import it, and add it to the
+        createHooks({...}) your LiveSocket's hooks already spread:
+
+            #{import_line}
+
+            createHooks({ #{entry} })
+        """
+      else
+        """
+        Register the adapter in assets/js/app.js:
+
+            #{import_line}
+
+            hooks: { ...colocatedHooks, ...createHooks({ #{entry} }) },
+        """
+      end
+
+    String.trim_trailing(message)
   end
 
   # --- Generated code ---------------------------------------------------------

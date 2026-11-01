@@ -92,6 +92,43 @@ defmodule XeniaExamplesWeb.App.SettingsPage do
     <p id="server-settings" class="text-sm opacity-70">
       {@name} · email: {@settings["email"]} · summary: {@settings["summary"]}
     </p>
+    <h2 class="text-lg font-semibold">How it's made</h2>
+    <.snippet title="The tag and the server, in page.ex" code={page_snippet()} />
+    <.snippet title="The adapter, in assets/js/islands/toggles.js" code={adapter_snippet()} />
     """
   end
+
+  # The code on the page: how this example is made.
+  defp page_snippet,
+    do: ~S"""
+    <.xenia
+      id="toggles"
+      adapter="Toggles"
+      props={%{items: items(@settings, @locale)}}
+      events={%{change: "toggled"}}
+    />
+
+    # items: [%{key: "email", label: gettext("Email notifications"), checked: true}, ...]
+    def handle_event("toggled", %{"key" => key, "checked" => checked}, socket),
+      do: {:noreply, update(socket, :settings, &Map.put(&1, key, checked))}
+    """
+
+  defp adapter_snippet,
+    do: ~S"""
+    export const toggles = {
+      mount(el, props, ctx) {
+        const list = el.appendChild(document.createElement("div"))
+        list.addEventListener("change", (event) =>
+          ctx.emit("change", { key: event.target.dataset.key, checked: event.target.checked }),
+        )
+        const instance = { list }
+        update(instance, props.items) // a checkbox per item
+        return instance
+      },
+      destroy: (instance) => instance.list.remove(),
+      // A new language only changes the labels: updated in place, not rebuilt
+      props: { items: (instance, items) => update(instance, items) },
+      events: { change: {} },
+    }
+    """
 end

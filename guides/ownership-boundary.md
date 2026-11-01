@@ -61,6 +61,11 @@ Both depend on the library.
 
 - Called once per instance, when LiveView mounts the container. After
   `ctx.remount()`, it's called again for a new instance.
+- With `lazy="visible"` on the tag, it waits until the container is within
+  200 px of the viewport (an `IntersectionObserver`). Until then, commands
+  are queued, props are only recorded, and a removed component is never
+  mounted, so `destroy` isn't called either. Without `IntersectionObserver`,
+  it mounts at once.
 - `props` is the decoded props, always an object.
 - If it returns a Promise:
   - prop changes are recorded, and the changed ones are applied when it
@@ -109,8 +114,8 @@ that arrive meanwhile go to the new instance.
 ## ctx
 
 Each instance gets its own `ctx`. After a remount, the old one is dead: its
-`emit`, `remount`, `setFormValue` and `upload` do nothing, and its `call`
-rejects.
+`emit`, `remount`, `setFormValue` and `upload` do nothing, its `call`
+rejects, and its `signal` is aborted.
 
 | | |
 |---|---|
@@ -121,6 +126,7 @@ rejects.
 | `ctx.remount()` | rebuild the instance with the latest props |
 | `ctx.setFormValue(value, { notify })` | write the form input (see Forms). Returns whether the component is a form field |
 | `ctx.upload(name, files)` | send files through a LiveView upload. Returns `false` and logs the reason if it can't start; it never throws |
+| `ctx.signal` | an `AbortSignal`, aborted when this instance's destruction begins (before `destroy` runs). Pass it to `fetch` and to listeners outside `el`, and they clean themselves up |
 | `ctx.hook` | the raw LiveView hook. Don't keep references to it across destroy or remount |
 
 ## Events
@@ -218,12 +224,18 @@ A component given `field={@form[:name]}` is a form field. That works on
   `used_input?/1` works: errors appear only once the user has changed the
   field, as with `<.input>`.
 - The value is written as text: `nil` becomes `""`, numbers, booleans and
-  atoms become text, maps and lists become JSON. The browser side uses the
-  same rule.
+  atoms become text, maps become JSON. The browser side uses the same rule.
+- A list is submitted as a list: one input per value, named
+  `post[tags][]`, so an Ecto `{:array, _}` field casts it directly. An
+  empty list is submitted as `[""]`, so removing the last value still
+  reaches the server; Ecto's cast turns it into `[]`. A declared tag's
+  `form_value` prop gets the list without that `""`.
 - LiveView never updates that input after the first render. So your adapter
   writes it:
   - when the user changes the value: `ctx.setFormValue(value)`. This fires
-    the form's `phx-change`, unless the value is unchanged.
+    the form's `phx-change`, unless the value is unchanged. Pass a list
+    (`ctx.setFormValue(["a", "b"])`) for a multi-value field: one
+    `phx-change` for the whole list.
   - when the server changes it: `ctx.setFormValue(value, { notify: false })`.
 - Submit, `phx-change` and LiveView's form recovery after a reconnect all
   work through that input.
@@ -244,6 +256,21 @@ rules above.
 - Other JavaScript can read the same values with `readProvider(name)` and
   `subscribeProvider(name, fn)`.
 
+One value comes from Xenia itself: `consumes: ["connection"]` gives the
+island `"connected"` or `"disconnected"`, the state of its own LiveView.
+- It's `"disconnected"` while the LiveView has lost its connection, or has
+  crashed on the server and is joining again. Events the island sends then
+  are dropped, so an editor can turn read-only, for example.
+- It arrives like any other: in `mount`, then through the `connection`
+  handler. Check it in `mount` too: an island can start while disconnected
+  (a lazy one, say).
+- Each island follows its own LiveView, so a nested LiveView that crashes
+  doesn't change the islands outside it.
+- The name is reserved: `setProvider("connection", ...)` is ignored with a
+  warning, and `<Xenia.Provider.provider name="connection">` raises.
+- For a notice for the whole page, use Phoenix's own: the "We can't find
+  the internet" flash, or the `phx-disconnected` binding.
+
 ## Attributes on the container
 
 Global attributes given to a component go on the container: `class`,
@@ -255,3 +282,62 @@ through.
 If your `LiveSocket` uses a custom `bindingPrefix`, configure the same prefix
 for Xenia: `config :xenia, binding_prefix: "pop-"`. The server can't see the
 browser's setting, so the two must match.
+
+## Things outside `el`
+
+- **Overlays added to `document.body`** (a date picker's calendar, a
+  dropdown, a tooltip) are outside the island, and neither LiveView nor
+  Xenia touches them. The library's own teardown usually removes them, so
+  call it in `destroy`. flatpickr's `destroy()` removes its calendar, and a
+  browser test checks it across navigations.
+- **Listeners on `document` or `window`:** add them with
+  `{ signal: ctx.signal }`. Xenia aborts the signal when the island is
+  destroyed or replaced, and that removes them, also after a failed mount,
+  where `destroy` isn't called.
+- **Requests:** `fetch(url, { signal: ctx.signal })` is cancelled if the
+  island goes first. A `mount` waiting for it then rejects, and that isn't
+  a crash: the island is gone, so nothing is reported.
+- **Global resources** (Monaco's models, a map's container): key them by
+  `ctx.id`, and reuse one that already exists.
+- **Focus:** LiveView never patches inside the island, so focus and
+  selection inside it survive the page's updates.
+- **The rest of the page:** don't change elements LiveView renders. Send an
+  event, and let the server render the change.
+
+## Reconnects
+
+A reconnect is a new LiveView process: `mount` runs again, and the server's
+state starts over. In the browser nothing is torn down: islands keep their
+instances, their text and their undo history.
+
+- **Form fields** get their values back through LiveView's form recovery.
+- **Any other island's value** reaches the server with its next event.
+  Events emitted while LiveView is disconnected are dropped. An event that
+  carries the whole value, like Monaco's `change`, puts the server right
+  again; if the server must know the value as soon as it reconnects, make
+  the island a form field.
+
+## What Xenia guarantees, and the tests that prove them
+
+Each of these is tested on every push, unit tests in Node and browser tests
+in Chromium. The browser tests also run every night against the newest
+releases of LiveView and of each official adapter's library.
+
+| Guarantee | Tested in |
+|---|---|
+| An adapter's `destroy` runs exactly once. | [`teardown.test.js`](https://github.com/uzaydurdu/xenia/blob/main/test/js/teardown.test.js) |
+| An island removed while its library is still loading is never drawn. Its `destroy` runs when the load finishes. | [`controller.test.js`](https://github.com/uzaydurdu/xenia/blob/main/test/js/controller.test.js), [`official_adapters.test.js`](https://github.com/uzaydurdu/xenia/blob/main/test/js/official_adapters.test.js) (all 16 adapters), [`lifecycle.test.mjs`](https://github.com/uzaydurdu/xenia/blob/main/examples/assets/e2e/lifecycle.test.mjs) |
+| `ctx.isAlive()` is false once destruction begins, or once the element leaves the page. | [`teardown.test.js`](https://github.com/uzaydurdu/xenia/blob/main/test/js/teardown.test.js) |
+| Events sent just before a navigation reach the server while LiveView is still connected. | [`teardown.test.js`](https://github.com/uzaydurdu/xenia/blob/main/test/js/teardown.test.js), [`lifecycle.test.mjs`](https://github.com/uzaydurdu/xenia/blob/main/examples/assets/e2e/lifecycle.test.mjs) |
+| A command reaches only the island with its id. While the island mounts, commands wait, in order. | [`controller.test.js`](https://github.com/uzaydurdu/xenia/blob/main/test/js/controller.test.js), [`lazy.test.js`](https://github.com/uzaydurdu/xenia/blob/main/test/js/lazy.test.js), [`lifecycle.test.mjs`](https://github.com/uzaydurdu/xenia/blob/main/examples/assets/e2e/lifecycle.test.mjs) (two editors) |
+| A prop that changes while the island mounts arrives once the mount has finished; the latest value wins. | [`controller.test.js`](https://github.com/uzaydurdu/xenia/blob/main/test/js/controller.test.js), [`lazy.test.js`](https://github.com/uzaydurdu/xenia/blob/main/test/js/lazy.test.js) |
+| A crash shows `<:error>` and sends `on_crash`. A retry starts a fresh instance. | [`slots.test.js`](https://github.com/uzaydurdu/xenia/blob/main/test/js/slots.test.js), [`examples.test.mjs`](https://github.com/uzaydurdu/xenia/blob/main/examples/assets/e2e/examples.test.mjs) |
+| Rapid navigation leaves exactly one working set of islands, with no errors. | [`lifecycle.test.mjs`](https://github.com/uzaydurdu/xenia/blob/main/examples/assets/e2e/lifecycle.test.mjs) |
+| 50 navigations leave no editors, models or memory behind. | [`lifecycle.test.mjs`](https://github.com/uzaydurdu/xenia/blob/main/examples/assets/e2e/lifecycle.test.mjs) |
+| A persistent part keeps its island across pages: the same instance, text and undo history. | [`lifecycle.test.mjs`](https://github.com/uzaydurdu/xenia/blob/main/examples/assets/e2e/lifecycle.test.mjs) |
+| A reconnect keeps the islands' instances. Form fields are recovered, and other islands' values come back with their next event. | [`reconnect.test.mjs`](https://github.com/uzaydurdu/xenia/blob/main/examples/assets/e2e/reconnect.test.mjs) |
+| An overlay a library adds to `document.body` goes with its island (flatpickr's calendar). | [`lifecycle.test.mjs`](https://github.com/uzaydurdu/xenia/blob/main/examples/assets/e2e/lifecycle.test.mjs) |
+| Several props changed in one update cause one redraw (Chart.js). | [`chartjs.test.js`](https://github.com/uzaydurdu/xenia/blob/main/test/js/chartjs.test.js) |
+| `lazy="visible"` mounts, and downloads, nothing before the island is near the screen. | [`lazy.test.js`](https://github.com/uzaydurdu/xenia/blob/main/test/js/lazy.test.js), [`lazy.test.mjs`](https://github.com/uzaydurdu/xenia/blob/main/examples/assets/e2e/lazy.test.mjs) |
+| An island that consumes `connection` gets `"disconnected"` while its own LiveView is disconnected or rejoining after a crash, then `"connected"`, on the same instance. | [`connection.test.js`](https://github.com/uzaydurdu/xenia/blob/main/test/js/connection.test.js), [`connection.test.mjs`](https://github.com/uzaydurdu/xenia/blob/main/examples/assets/e2e/connection.test.mjs) |
+| A listener or `fetch` given `ctx.signal` is removed or cancelled when its island is destroyed, replaced, or fails to mount. Listeners never pile up across navigations. | [`signal.test.js`](https://github.com/uzaydurdu/xenia/blob/main/test/js/signal.test.js), [`listeners.test.mjs`](https://github.com/uzaydurdu/xenia/blob/main/examples/assets/e2e/listeners.test.mjs) |

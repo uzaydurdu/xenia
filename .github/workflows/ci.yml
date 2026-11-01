@@ -135,6 +135,9 @@ jobs:
 
       - run: mix deps.get
       - run: npm ci --prefix assets
+      # The TypeScript island (assets/js/islands/budget.ts), and every .js
+      # file that starts with // @ts-check.
+      - run: npm run typecheck --prefix assets
       - run: mix format --check-formatted
       - run: mix compile --warnings-as-errors
       - run: mix test

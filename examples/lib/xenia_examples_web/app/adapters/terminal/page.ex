@@ -43,6 +43,9 @@ defmodule XeniaExamplesWeb.App.Adapters.TerminalPage do
     <.xterm id="terminal" on_ready="ready" on_data="typed" style="height: 280px" />
 
     <p id="commands">Commands run: {@commands}</p>
+    <h2 class="text-lg font-semibold">How it's made</h2>
+    <.snippet title="The tag and the server, in page.ex" code={page_snippet()} />
+    <.snippet title="The setup, once, in assets/js" code={setup_snippet()} />
     """
   end
 
@@ -65,4 +68,36 @@ defmodule XeniaExamplesWeb.App.Adapters.TerminalPage do
 
   defp write(socket, ""), do: socket
   defp write(socket, text), do: Xenia.push_to(socket, "terminal", "write", %{text: text})
+
+  # The code on the page: how this example is made.
+  defp page_snippet,
+    do: ~S"""
+    <.xterm id="terminal" on_ready="ready" on_data="typed" style="height: 280px" />
+
+    # A terminal is a stream: output goes as `write` commands...
+    def handle_event("ready", _params, socket),
+      do: {:noreply, Xenia.push_to(socket, "terminal", "write", %{text: "Welcome.\n$ "})}
+
+    # ...and what the user types arrives as `data` events. xterm doesn't echo:
+    # the server writes back what it wants shown.
+    def handle_event("typed", %{"data" => data}, socket),
+      do: {:noreply, Xenia.push_to(socket, "terminal", "write", %{text: data})}
+    """
+
+  defp setup_snippet,
+    do: ~S"""
+    import { createXterm } from "xenia/xterm"
+
+    export const xterm = createXterm({
+      load: async () => ({
+        ...(await import("@xterm/xterm")),
+        ...(await import("@xterm/addon-fit")),
+        ...(await import("@xterm/addon-search")),
+        ...(await import("@xterm/addon-web-links")),
+      }),
+    })
+
+    // app.js
+    createHooks({ Xterm: xterm })
+    """
 end

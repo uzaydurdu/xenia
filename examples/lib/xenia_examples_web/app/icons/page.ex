@@ -171,6 +171,30 @@ defmodule XeniaExamplesWeb.App.IconsPage do
         class="link"
       >heroicons.com</a>.
     </p>
+    <h2 class="text-lg font-semibold">How it's made</h2>
+    <.snippet title="In a template" code={template_snippet()} />
+    <.snippet title="The icon sets, in assets/css/app.css" code={css_snippet()} />
     """
   end
+
+  # The code on the page: how this example is made.
+  defp template_snippet,
+    do: ~S"""
+    <.icon name="lucide-save" class="size-4" /> Save
+    <.icon name="hero-check-circle" class="size-5" />
+
+    <%!-- An icon that means something gets a label for screen readers --%>
+    <.icon name="mdi-check-circle" class="size-5 text-success" label="Saved" />
+    """
+
+  defp css_snippet,
+    do: ~S"""
+    /* Only the icons your templates name end up in the CSS. */
+    @plugin "../vendor/iconify" {
+      sets: lucide, mdi;
+    }
+
+    /* Each set is an npm package, installed in assets/: */
+    /* npm install @iconify-json/lucide @iconify-json/mdi */
+    """
 end

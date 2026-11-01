@@ -152,6 +152,18 @@ defmodule Xenia.ProviderTest do
     end
   end
 
+  # Xenia sets "connection" for each island from its own LiveView, so a
+  # published value would never reach an island; say so instead.
+  test "rejects the reserved name \"connection\", and says how to get it" do
+    assigns = %{}
+
+    assert_raise ArgumentError, ~r/"connection" is reserved.*consumes: \["connection"\]/s, fn ->
+      rendered_to_string(~H"""
+      <.provider name="connection" value="connected" />
+      """)
+    end
+  end
+
   test "rejects a provider name that isn't a string" do
     assigns = %{name: :theme}
 

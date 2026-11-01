@@ -316,6 +316,18 @@ and what the core guarantees. Anything not written here is not promised.
 
 - Called once per instance, from the hook's `mounted()`. After `ctx.remount()`
   it is called again, for a new instance.
+- **`lazy="visible"`** (`data-xenia-lazy`, since 0.2.0) delays that call:
+  - `adapterHook`'s `start()` still creates the Controller at once, and
+    an `IntersectionObserver` (`rootMargin: "200px"`) calls `mount()` when
+    the container comes near the viewport;
+  - commands queue and `update()` only records, as during a pending mount,
+    and `mount` reads the latest props;
+  - destroyed before that: no mount and no `destroy`, and `destroyed()`
+    disconnects the observer;
+  - without `IntersectionObserver`, or with any other value, it mounts at
+    once.
+
+  It is not a lifecycle concept: it only decides *when* mount is called.
 - `el` is an empty element the core creates inside the LiveView container
   (`width` and `height` 100%), and removes after `destroy`. The adapter owns
   it completely: children, attributes, listeners. The adapter never touches
@@ -436,6 +448,36 @@ over accessing LiveView directly. Each instance gets its own `ctx`.
 - `ctx.call(name, payload)`: sends an event and returns a Promise of the
   server's reply (`{:reply, map, socket}`). Since 2026-10-25; rules under
   "Calls" below.
+- `ctx.signal` (0.2.0, the author's): an `AbortSignal`, one per instance,
+  aborted when that instance's destruction begins. The adapter passes it to
+  `fetch(url, { signal })` and to `addEventListener(..., { signal })` on
+  `document` or `window`, and both clean themselves up.
+  - **When:** `destroy()` (removal, navigation, a crash teardown), a remount
+    replacing the instance (`performRemount`), and a failed mount
+    (`abandonMount`, which never calls `adapter.destroy`, so the signal is
+    the only way listeners added by a failed mount go away). Always after
+    `isAlive()` turned false and before `adapter.destroy`.
+  - **Never earlier:** `ctx.remount()` aborts nothing. A pending mount
+    still finishes, and only its replacement aborts it.
+  - **Quiet:** a mount that rejects with the AbortError because the island
+    was removed is not a crash (`mount()` returns early once the state is
+    destroyed): no `on_crash`, no error slot, no console error.
+  - **Same realm as the page:** the `AbortController` comes from
+    `el.ownerDocument.defaultView`, like the form's `input` event. A signal
+    from another realm is refused by that page's `addEventListener`; jsdom
+    showed it (Node's `AbortController`), and an iframe would too.
+  - **Each instance its own:** a remount and a retry start with a fresh
+    signal. The controllers live in a module-level `WeakMap` keyed by ctx.
+  - **Justification:** data on `ctx`, like `ctx.id`; no callback, so not a
+    lifecycle concept. `isAlive()` only lets an adapter ignore a late
+    result; the signal stops the work and removes listeners outside `el`.
+  - Tests: `test/js/signal.test.js` (12, with two mutation checks: Node's
+    `AbortController`, and no abort in `abandonMount`), and
+    `examples/assets/e2e/listeners.test.mjs` on `/listeners`, which counts
+    the document's real `keydown` listeners through Chrome DevTools
+    (`DOMDebugger.getEventListeners`): one more on the page than off it,
+    the same after five round trips, and one leaked per visit with
+    `abortContext` emptied.
 - `ctx.hook`: the raw LiveView hook, the escape hatch. Use only when an
   integration needs a LiveView capability Xenia doesn't expose. References
   must not be retained across destroy or remount. Since `ctx.upload`, no
@@ -583,8 +625,9 @@ A component inside a `<.form>` is a form field when it is given
   - **`data-xenia-field`** is how the core finds it: the direct child of the
     container with that marker. No other input is ever written.
 - The value becomes the string an input holds: `nil` → `""`, numbers, booleans
-  and atoms → text, maps and lists → JSON. That's the same rule as the core's
-  `ctx.setFormValue`, so the server and the browser write equal strings.
+  and atoms → text, maps → JSON. That's the same rule as the core's
+  `ctx.setFormValue`, so the server and the browser write equal strings. A
+  list is one input per value (Lists, below).
 - For a declared component, the field's value fills the `form_value` prop.
   When a field is given, its value wins over the prop (also for `<.monaco>`).
 
@@ -614,6 +657,28 @@ user input (Shoelace) needs nothing.
 **Values arrive as the form holds them.** After a `phx-change`, a field's
 value is the submitted param, a string (`"4"`, not `4`). The adapter converts
 it (`xenia_demo/assets/js/rating_adapter.js`, `toRating`).
+
+**Lists (0.2.0, the author's task 6).** A field whose value is a list is
+submitted as a list, so an Ecto `{:array, _}` field casts it directly:
+- The server renders one input per value, named `post[tags][]`, and no
+  plain `post[tags]` input. Each value is converted as above.
+- An empty list renders one input holding `""`: without an input the form
+  wouldn't send the field, and removing the last value would never reach
+  the server. Ecto's cast removes empty strings from arrays (its docs say
+  so), giving `[]`. A declared tag's `form_value` prop gets the list
+  without `""` (`__form_props__`), so a reply to the adapter's own `[]`
+  compares equal to it (echoes).
+- `ctx.setFormValue(array)` goes to `setFormValues`: one input per value,
+  reusing the inputs there are, removing extras and adding copies of the
+  first. The first input is never replaced, because LiveView records on it
+  that the field was used (`used_input?/1`). One `input` event for the
+  whole list, none when the values and their order are unchanged. A plain
+  value on a list field makes it one plain input again.
+- LiveView names a list's unused marker `post[_unused_tags][]`
+  (`prependFormDataKey`), and `used_input?/1` reads it, so errors still
+  wait for the user.
+- Replaced the JSON string Tom Select, flatpickr and SortableJS submitted
+  in 0.1, which an Ecto array field couldn't cast.
 
 #### Keyboard shortcuts (2026-10-24)
 
@@ -875,6 +940,38 @@ released on destroy and on a failed mount.
 `readProvider(name)` (`{ value }` or `null`), and
 `subscribeProvider(name, fn)`, which returns the unsubscribe function. Code
 outside Xenia's adapters can read the same values.
+
+### The connection value (0.2.0, the author's)
+
+`consumes: ["connection"]` gives an island `"connected"` or
+`"disconnected"`: its own LiveView's state, as an ordinary prop (in `mount`,
+then through its `connection` handler). For an editor that turns read-only
+while edits can't reach the server, and the like (example: `/connection`).
+- **Per island, not in the store.** `adapterHook` implements LiveView's
+  hook callbacks `disconnected()` and `reconnected()`: they set
+  `hook._xeniaConnection` and re-run the Controller's `update()`.
+  `readProps()` reads it for the name `connection` (`"connected"` when
+  unset: a hook mounts only after its LiveView has joined), and the
+  Controller subscribes to the store only for the other names. A page-wide
+  store value would be wrong for a nested LiveView that crashes alone.
+- **Kept on the hook**, so a retry's new Controller, a remount and a lazy
+  island that mounts while disconnected all start with the current value.
+- **When LiveView calls them** (`view.ts`, 1.2.13): `disconnected()` from
+  `showLoader()`, on a lost socket and also when the view crashed on the
+  server and rejoins (socket still up); `reconnected()` from
+  `onJoinComplete` after a rejoin. LiveView skips repeats
+  (`__isDisconnected`). Both measured in the browser: the same instance,
+  `"disconnected"` then `"connected"`.
+- **Reserved:** `setProvider("connection", ...)` warns and stores nothing;
+  `<Xenia.Provider.provider name="connection">` raises.
+- **Precedence as for any provider value:** an explicit `connection` prop
+  wins.
+- **No new lifecycle concept:** the adapter writes a prop handler. The hook
+  callbacks are LiveView's, used inside the core (§10 kill condition
+  untouched). `disconnected`/`reconnected` *adapter* callbacks were
+  rejected for that reason (`docs/NEXT_RELEASE.md`).
+- Page-wide notices stay Phoenix's: the "We can't find the internet" flash
+  and `phx-disconnected`.
 
 ---
 
@@ -1647,6 +1744,52 @@ and shortcut cases in the component tests. Browser:
 - **Focus scoping holds.** With focus on a button outside the editor, the
   same keys didn't change the font size.
 
+### Code splitting (verified 2026-10-29)
+
+The examples app builds `app.js` with
+`--splitting --format=esm --chunk-names=chunks/[name]-[hash]` and loads it
+with `<script type="module">`. Each `load: () => import(...)` is now a
+chunk.
+
+**Measured on the production build** (`MIX_ENV=prod mix assets.deploy`,
+after `MIX_ENV=prod mix compile`, which LiveView's co-located CSS needs):
+- `app.js` went from 7.9 MB to 0.29 MB;
+- what every page downloads up front, `app.js` plus its static imports,
+  is 0.59 MB in 5 files;
+- 7.5 MB of chunks load only when an island needs them.
+
+In the browser, `/chart` no longer downloads Monaco, and `/adapters/monaco`
+loads it as one chunk (`examples/assets/e2e/splitting.test.mjs`, which
+fails on the old single-file build). The leak test's heap after 10
+navigations went from 64.1 MB to 45.7 MB.
+
+**Monaco's workers need a profile of their own** (`xenia_examples_workers`).
+With `--splitting`, code shared between `app.js` and the workers moves
+into chunks, and a classic worker (`new Worker(url)`) can't `import` them.
+The worker profile has no splitting; the workers come out standalone (no
+`import`).
+
+**Also found:**
+- **CSS:** Monaco's CSS stays in the `assets/js/app.css` the page loads.
+  esbuild also writes copies of it next to some chunks
+  (`chunks/*.css`), which are never loaded and do no harm.
+- **Statically imported libraries stay up front:** a hand-written adapter's
+  `import Chart from "chart.js/auto"` is part of the first download.
+- **Digests:** after `phx.digest`, the digested `app.js` still imports the
+  undigested chunk names, which `phx.digest` keeps, so they're served.
+- **A small `app.js` turned on Phoenix's server-log streaming.** Phoenix's
+  dev `app.js` calls `reloader.enableServerLogs()` when the live-reload
+  frame attaches. With the 59 MB dev build, that listener seemingly
+  attached too late, so no logs were streamed. With the split build it
+  attaches in time, and every page's console gets the server's logs,
+  marked `📡`, including the Notifications example's deliberate error. 13
+  browser tests failed on that until their console checks skipped `📡`
+  messages (`examples/assets/e2e/console.mjs`). Then 52/52 on macOS and in
+  Linux Chromium.
+- **A running dev server keeps its old esbuild config.** Its watcher
+  rewrote `app.js` in the old format. Restart `mix phx.server` after
+  changing the esbuild profiles.
+
 ### Lifecycle browser tests, public (verified 2026-10-28)
 
 `examples/assets/e2e/lifecycle.test.mjs` has 6 tests, on two new example
@@ -1740,6 +1883,120 @@ its "by hand" message prints the whole snippet, theme publisher included.
   1.8.
 - Surface's mix task gives type warnings on Elixir 1.20. They're in a
   dependency, so they don't fail an app's `--warnings-as-errors`.
+
+### TypeScript declarations (verified 2026-11-01)
+
+0.2.0 task 4. `priv/types/*.d.ts` (shipped: `priv` is in the package),
+reached through a `types` condition before `default` in every
+`package.json` export. esbuild ignores `types` and keeps using `default`.
+Checked by `npm run types` in `mix check`: `test/types` has a JSDoc
+fixture (`core.js`) and a TypeScript one (`adapters.ts`). Each
+`@ts-expect-error` there is a mistake the types must catch (11 in the
+core fixture), so an unused one fails `tsc`. `check_package` checks every
+export condition's file is in the Hex package.
+
+- **The generic is the product:** `Adapter<Instance, Props, Events,
+  Commands>` types any adapter for any library (Tier 1). The library's own
+  types describe `Instance` (Chart.js's `Chart`); Xenia never describes a
+  library. The 16 official adapters' declarations are Xenia's own surface:
+  factory options, props, events, commands, with library objects as `any`.
+  Their library isn't installed in Xenia (M7), so a `.d.ts` can't import
+  its types.
+- **Both TypeScript 5.9.3 and 7.0.2 pass** on the fixtures. Xenia pins 7.0.2.
+- **TypeScript 7 refuses Phoenix 1.8's generated `assets/tsconfig.json`:**
+  "Option 'baseUrl' has been removed". `paths` work without it (relative to
+  the tsconfig since TS 4.1).
+- **Phoenix's `"paths": {"*": ["../deps/*"]}` resolves `"xenia"` but not
+  `"xenia/chartjs"`** with Xenia from Hex: a path-mapped import is a path,
+  so `exports` isn't read. Measured on the package as `mix hex.build`
+  unpacks it, under both versions. Two explicit lines fix it:
+  `"xenia": ["../deps/xenia/priv/types/xenia.d.ts"]` and
+  `"xenia/*": ["../deps/xenia/priv/types/*.d.ts"]` (the guide's "Typed
+  adapters"). `typesVersions` was tried and made it worse: TypeScript 5
+  then lost `"xenia"` too. Not shipped.
+- **An app's tsconfig needs `skipLibCheck: true`** in practice: Uppy's
+  declarations need `Symbol.dispose`, tus-js-client needs Node's `Buffer`,
+  and LiveView's own declarations don't match how `"phoenix"` resolves
+  through `deps`.
+- **Co-located adapters can be TypeScript:** `extension="ts"` on the
+  `ColocatedHook` script (LiveView passes it to `ColocatedJS`). Verified in
+  the browser on `/listeners`: LiveView writes a `.ts` file, esbuild
+  compiles it, both browser tests pass. `tsc` checks the written files once
+  `"../_build/dev/phoenix-colocated/**/*.ts"` is in `include`; errors name
+  those files, not the `.ex`.
+- **`mix xenia.install` adds the two `paths` lines** (both modes; the
+  `typescript` step). The path is computed from where Xenia is, relative
+  to `assets/` (`../deps/xenia/priv/types` from Hex), with a small helper:
+  `Path.relative_to/3`'s `force:` needs Elixir 1.16. Text editing, because
+  Phoenix's tsconfig has comments. It only points out `baseUrl`, which is
+  Phoenix's. Verified in a fresh app laid out as Hex installs it: the
+  lines written, a second run skips, and `tsc` (5.9) resolves
+  `"xenia/chartjs"` through them.
+- **Example:** `/typed`, `assets/js/islands/budget.ts`, and
+  `npm run typecheck` in the examples job of CI. A misspelled event reads:
+  `Argument of type '"segment_clik"' is not assignable to parameter of type
+  '"segment_click"'`.
+
+### Large data (measured 2026-11-01)
+
+0.2.0 task 5. The examples app's `/large-data`: one series in two charts, `<.chartjs data={...}>` (a prop) and `liveChart` (the official
+adapter extended by spreading: `ready`, `replace_points`,
+`append_points`). Measured with `examples/assets/scripts/measure-large-data.mjs`
+(Playwright, WebSocket frames, timers around the controller; median of 5;
+LiveView 1.2.13, Chromium):
+
+| | Data as a prop | Data by commands |
+|---|---|---|
+| Add one point | 585 KB | 99 bytes |
+| Change `type` only | 585 KB | 164 bytes (its props) |
+
+- **Xenia's share in the browser is small:** `readProps` (JSON.parse of the
+  585 KB attribute) 1.1–1.7 ms; the compare 0–0.1 ms when `data` changed
+  (lengths differ), 1.1–4.2 ms when only `type` changed (the equal
+  50,000-element arrays are walked). Chart.js's update costs about 300 ms
+  (450 ms to bars) for both charts: the library, not the transport, is
+  the browser cost.
+- **A latency per chart isn't measurable on one page:** both charts'
+  changes arrive in the same reply frame, and on localhost the transfer is
+  nearly free. The bytes are what a real network pays.
+- **The pattern:** the server keeps the data; the adapter emits `ready`
+  in `mount` and the server answers with one command carrying it all;
+  then commands with only the changes. A reconnect is a new LiveView
+  process: the adapter consumes `"connection"` and emits `ready` again on
+  `"connected"`. Browser-tested, mutation included (without that handler
+  the chart keeps the old process's 50,001 points). The official Chart.js
+  adapter rebuilds for a new `type` from `instance.config.data`, so
+  `liveChart` stores its points through the official `data` handler.
+- **The page now starts at 100 points, with 1,000 and 10,000 buttons**
+  (the author, 2026-11-01: 50,000 was slow, and showed no bars). Two
+  causes, both Chart.js settings, not Xenia:
+  - the official adapter gives line datasets `pointRadius: 3`, which wins
+    over `options.elements.point.radius: 0`, so every point was drawn as a
+    dot. The page sets `pointRadius: 0` on its dataset (a dataset's own
+    keys are spread after the adapter's defaults);
+  - 50,000 bars in ~450 px are a hundredth of a pixel each, and Chart.js
+    leaves gaps: nothing visible. `options.datasets.bar` with
+    `barPercentage: 1, categoryPercentage: 1` fills the slots; 10,000 bars
+    then show (screenshots checked).
+
+  At 10,000 points: a new point 109 KB as a prop vs 99 bytes; a `type`
+  change 109 KB vs 208 bytes (the command chart's props); Xenia's parse and
+  compare ≤ 0.4 ms; Chart.js ~30 ms per point, ~120 ms for a type switch.
+  The 50,000-point numbers above were measured on the first version.
+- **Spike, one attribute per prop (scratch only, not built):** a function
+  component rendering `data-xenia-prop-type={...}` and
+  `data-xenia-prop-data={...}` as two literal attributes made a `type`
+  change send 0.6 KB instead of 295 KB (a 50,000-float list). The big
+  attribute stayed intact on the `phx-update="ignore"` container. Adding a
+  point still sent everything (295 KB): only commands fix that. Through a
+  props map (`props={%{type: @type, data: @data}}`, rendered per key) it
+  saved nothing: LiveView treats the map as changed and re-evaluates every
+  `@props.x`. So it can only help declared tags (`use Xenia.Components`),
+  whose prop names are known at compile time, and only if the generated
+  tag renders one literal attribute per prop instead of calling `<.xenia>`
+  with a map. The JS side would read `data-xenia-prop-*` and could skip
+  parsing and comparing a key whose raw string didn't change. A core
+  change: the author's decision (`docs/NEXT_RELEASE.md`).
 
 ### Subtraction study — completed
 
@@ -2163,6 +2420,7 @@ The README says when a plain hook is enough.
 | Provider sources | Server: `<Xenia.Provider.provider>` (hidden element, built-in `XeniaProvider` hook). Browser: `setProvider` from app code. One source per name | M6. Two-way providers stay undesigned (§5) |
 | App-wide theme | Published from the browser (Phoenix 1.8's theme toggle), not from the server | M6, the author's decision: the toggle is browser-owned, and "system" follows the OS |
 | Provider JS API | `setProvider`, `readProvider`, `subscribeProvider` exported from `"xenia"` | M6. Code outside adapters can use the same values |
+| Connection value | `consumes: ["connection"]` → `"connected"`/`"disconnected"` per island, from its LiveView hook's `disconnected()`/`reconnected()`; not in the store; the name is reserved | 0.2.0, implemented by the author (2026-10-31). §5 "The connection value" |
 | **Binding prefix** | **Never hardcode `phx-`.** `config :xenia, binding_prefix: "phx-"` (the default, with the dash, like LiveView's JS `bindingPrefix`) | Local LiveView uses `pop-` — §7. Implemented in M3. The server can't see the client's `bindingPrefix`, so the two must be configured to match |
 | Declarations | **Split** (§12): Elixir declares the tag, JS supplies the adapter | Decided at M4. Since M10 the JS can also sit in the same module (co-located adapters, below) |
 | Co-located adapters | `<script :type={Phoenix.LiveView.ColocatedHook} name=".Chart">` exporting `adapterHook({...})`; named with `colocated(".Chart")` on `<.xenia>`, or `adapter: ".Chart"` on a declaration in the same module; a bare `".Chart"` on `<.xenia>` raises | M10. LiveView's public ColocatedHook, not a Xenia file format (§8). Compile-time resolution, because `<.xenia>` can't know its caller (§6 M10 findings) |
@@ -2185,6 +2443,10 @@ The README says when a plain hook is enough.
 | Public history | A fresh one-commit public repository `uzaydurdu/xenia`, committed with GitHub's private email address; the full history stays in a renamed private repository (`xenia-private`) | The author, 2026-10-25: keeps `docs/` and the personal email out of public history without rewriting it. Public contact is uzaydurdu.com (README, `SECURITY.md`, Hex links) |
 | App folder | Folders define routes and layouts; `xenia_routes` generates plain `live` routes; no `parent:` or `layout:` | M9, the author's call: discovery made explicit declarations redundant |
 | App folder status | Not labelled experimental. The README marks it optional, and says JavaScript islands work in any LiveView without it | The author, 2026-10-27, after an outside critique. Labelling it would undercut the "new way to write Phoenix apps" choice (§2), and 0.x already allows API changes. The real risk is that it relies on LiveView behaviour that isn't promised (`__changed__`, sticky LiveViews); a planned nightly CI job against the newest LiveView covers it |
+| Installing into an existing app | `mix xenia.install --islands-only` (the author's name): only the `javascript`, `html_helpers` and `formatter` steps. It prints the code-splitting steps rather than editing an existing esbuild config. `mix xenia.gen.component` says to add the adapter to an existing `createHooks({...})` | 2026-10-30, 0.2.0 task 3. Verified on a customized `mix phx.new` app (its own `Hooks` spread, its own theme colour, its own LiveView), with the package as Hex ships it: exactly `app.js`, the web module and `.formatter.exs` changed (`...Hooks` kept); it compiled without warnings, was formatted, `mix test` passed 5/5; a generated island mounted next to the app's own hook, with no console errors. Tests: 3 in `xenia_install_test.exs`, 1 in `xenia_gen_test.exs` |
+| `Xenia.Test` | `lib/xenia/core/test.ex`: `xenia_props/2`, `render_xenia_event/4`, `assert_xenia_command/5` (macro), `xenia_call/5` (macro), on `LiveViewTest`'s `render_hook`, `assert_push_event` and `assert_reply` | 2026-10-30, 0.2.0 task 2. In `lib/`, not `test/`: apps import it in their own tests, and Mix never compiles a dependency's `test/` (the M9 `Xenia.Routes` lesson). `LazyHTML` (test-only) gets `@compile {:no_warn_undefined, LazyHTML}` and a runtime check with a clear message; it compiles without warnings in dev and prod. `assert_push_event` puts its event into a receive pattern, so the command's name is built first and pinned: unpinned, `"xenia:command:" <> id` with a variable id matches any island (a test plants that bug and fails). Tests: `test/xenia/core/test_helpers_test.exs` (8, on a real LiveView through `live_isolated`), and the examples' `islands_test.exs` (4) |
+| Lazy islands | `lazy="visible"` on `<.xenia>`, declared tags (reserved in the DSL) and `<.monaco>`; `data-xenia-lazy`; only `"visible"` so far | 2026-10-29, 0.2.0 task 1 step 1, implemented by the author. The Controller is created at once, and only `mount()` waits for the `IntersectionObserver` (§4 mount). `idle` and `media` only after `visible` has proven reliable. Example: `/lazy`; tests: `test/js/lazy.test.js` (7), Elixir (5), `examples/assets/e2e/lazy.test.mjs` (3). The observer callback uses its own `const`, because `destroyed()` clears `this._xeniaObserver`, and a browser may still deliver an entry queued before that |
+| Code splitting | Documented in the README ("Code splitting") and used by the examples app: `--splitting --format=esm --chunk-names=chunks/[name]-[hash]`, `<script type="module">`, and Monaco's workers in a second profile without splitting | 2026-10-29, 0.2.0 task 1 step 0. It comes before lazy islands, because a lazy island without splitting saves only the startup, not the download (§6 "Code splitting"). Xenia's own bundles need no change: they're ESM and import nothing |
 | Supported versions | Elixir `~> 1.15`, Phoenix `~> 1.8`, LiveView `~> 1.2`. CI runs `mix check` on the newest (Elixir 1.20.2, OTP 29), and compiles and tests on the oldest (Elixir 1.15.8, OTP 26.2.5) | 2026-10-27. The Elixir floor is every dependency's own minimum, and the suite passed there first in Docker (`hexpm/elixir:1.15.8-erlang-26.2.5.21`, 320 tests). LiveView was narrowed from `~> 1.1`, never tested on 1.1 |
 | Surface UI | Supported. Islands and declared tags work in `~F`. Co-location goes through Surface's `.hooks.js` (`adapterHook`, `adapter="Module#default"`). `colocated/1` raises in a Surface module. `mix xenia.install` recognizes Surface's `app.js`. Surface is a test-only dependency (`test/xenia/core/surface_test.exs`) | The author, 2026-10-27, after the spike (§6 "Surface UI findings"). No new API: a Surface hook name is just an adapter string |
 | Official adapters' status | All 16 are stable; no "experimental" or support-level labels | The author, 2026-10-27, after an outside critique; confirms 2026-10-25. Don't propose support levels again. Stable means every declared peer version range is tested: a library's new major joins its range in `package.json` only after its browser test passes on it. Narrowed 2026-10-27 to the tested majors (Uppy `^6`, xterm `^6`, wavesurfer `^7`) |
@@ -2208,8 +2470,11 @@ The README says when a plain hook is enough.
 | CI | GitHub Actions (`.github/workflows/ci.yml`) has four jobs: `check` (`mix check` on the newest Elixir/OTP, plus the committed bundle matching the sources), `oldest` (compile and test on Elixir 1.15.8 / OTP 26.2.5), `browser` (the examples app's Playwright tests, 50 since 2026-10-28, against its dev server, `npm run e2e:ci`), and `examples` (format, compile, test, build) | M5; the browser and oldest jobs since 2026-10-27. Before pushing, the browser job was rehearsed on a clean copy: 44/44 on macOS, and 44/44 in Linux Chromium (`mcr.microsoft.com/playwright:v1.62.1-noble`). Linux needed two changes: the terminal test now waits for xterm's screen (it draws on the next animation frame), and CI runs the test files one at a time (`--test-concurrency=1`), because the multitrack test timed out under the parallel load |
 | Form participation | A server-rendered input inside the container, filled by the adapter through `ctx.setFormValue`: loud for the user's changes, quiet (`notify: false`) for the server's | M5.5. No form system: submit, `phx-change` and recovery are LiveView's (§4 Form fields) |
 | Form field API | `field={@form[:x]}` on `<.xenia>` and `<.monaco>`; `form_value: :prop` on a declaration. The field supplies id, name and value, and its value wins over the prop | M5.5. Phoenix's own `field` convention |
+| List form values | One `name[]` input per value; an empty list is `[""]`; `ctx.setFormValue(array)` writes the list | 0.2.0 (task 6). Ecto casts it directly and strips the `""` (§4 Form fields) |
 | Form echoes | Adapter-owned (§6: echo suppression never in the core). Monaco keeps pending echoes; a custom element whose events fire only for user input needs none | M5.5 |
 | Files | `ctx.upload(name, files)` over LiveView's upload channel; logs and returns `false` instead of throwing | M5.5. Replaced the only `ctx.hook` use (wavesurfer) |
+| TypeScript declarations | `priv/types` (hand-written `.d.ts`): the generic `Adapter<Instance, Props, Events, Commands>`, `Ctx`, the core functions, and each official adapter; a `types` condition on every export; checked in `mix check` (`test/types`); JSDoc `/** @type {import("xenia").Adapter<...>} */` for plain JS, a `.ts` file otherwise | 0.2.0 task 4 (2026-11-01). The author's decision: the JSDoc comment, no `defineAdapter`. Types derived from the Elixir declaration wait for the typed-contracts track (§6 "TypeScript declarations") |
+| `ctx.signal` | One `AbortSignal` per instance, from the page's own window, aborted when its destruction begins (destroy, a replacing remount, a failed mount), before `adapter.destroy`; `ctx.remount()` itself aborts nothing | 0.2.0, implemented by the author (2026-11-01). §4 ctx |
 
 ### Consequences accepted
 
@@ -2254,10 +2519,12 @@ The README says when a plain hook is enough.
   (§3).
 - **Report the LiveView lock bug upstream** (§6, M5 findings) once a plain
   LiveView reproduction is isolated. Xenia is protected either way.
-- **The "D3 pattern".** Adapters that redraw everything (D3) batch several
-  prop changes into one redraw with `queueMicrotask`, 8 lines. Seen once so
-  far; document it in M7 if a second adapter needs it. Not a core change:
-  §4 rules out a public `update()`.
+- ~~**The "D3 pattern".**~~ Adapters that redraw everything (D3) batch several
+  prop changes into one redraw with `queueMicrotask`, 8 lines. Not a core
+  change: §4 rules out a public `update()`. **Documented 2026-10-31**, now
+  that Chart.js does it too: the wrapping guide's "Several props, one
+  redraw", tested in `chartjs.test.js` (three props, one `update()`;
+  without the batching it fails).
 - ~~Is `destroy` synchronous?~~ — decided in M2: yes. A returned Promise is
   not awaited and gets a warning (§4 destroy).
 - **The double-mount window.** Re-measured twice on LiveView 1.2.10 (§6):
@@ -2311,7 +2578,8 @@ xenia/
   lib/xenia.ex          # Xenia: push_to/4
   lib/xenia/
     core/               # the JS-island boundary: Xenia.Component (<.xenia>),
-                        #   Xenia.Components (the DSL), Xenia.Provider, Xenia.Shortcuts
+                        #   Xenia.Components (the DSL), Xenia.Provider, Xenia.Shortcuts,
+                        #   Xenia.Test (helpers for apps' tests)
     app/                # pages from folders: Xenia.Page, Layout, Live, Persistent,
                         #   Routes (+ routes/: discovery), Metadata, Sitemap
     adapters/           # the official adapters' tags: Xenia.Adapters.Monaco, ...Tiptap, ...
@@ -2324,7 +2592,9 @@ xenia/
     adapters/           # the sixteen official adapters and their shared.js
   test/
     fixtures/phoenix_1_8/  # a pristine mix phx.new's files, for xenia.install
+    types/                 # tsc fixtures for priv/types (npm run types)
   priv/static/          # built ESM, one bundle per entry point (17) — committed
+  priv/types/           # hand-written TypeScript declarations, one per entry point
   priv/templates/xenia.install/  # theme, grid, layout and home page for new apps
   mix.exs
 ```
@@ -2359,7 +2629,13 @@ xenia_demo/             # mix phx.new, depends on {:xenia, path: "../xenia"}
 - **`examples/` is the public showcase; `xenia_demo` is the private test
   bed.** A user-facing feature gets a page in `examples/`, with a short
   README in plain English next to its code, and a browser test in
-  `examples/assets/e2e/`. CI compiles, builds and browser-tests the
+  `examples/assets/e2e/`. Since 2026-11-01 (the author's request) a page
+  also shows how it's made: a "How it's made" section of short snippets,
+  `<.snippet title=... code={...}>` (`components/snippets.ex`), the code as
+  a `~S` string so HEEx tags and braces show as they are (`~S'''` when the
+  code holds `~H"""`). Every example has one (36 pages); a browser test in
+  `examples.test.mjs` visits each example from the home page and fails if
+  one shows no snippet. CI compiles, builds and browser-tests the
   examples (the `browser` job).
 - **At least one demo uses a library with no first-party adapter**, to keep
   Tier 1 honest. Since M4: Chart.js (`xenia_demo/assets/js/chart_adapter.js`,

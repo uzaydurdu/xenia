@@ -75,6 +75,52 @@ defmodule XeniaExamplesWeb.App.Adapters.MultitrackPage do
     <p id="recording">{if @recording, do: "Recording: #{@recording}."}</p>
     <p id="recorded">{if @recorded, do: "Recorded #{@recorded}."}</p>
     <p :if={@error} id="error" class="text-error">{@error}</p>
+    <h2 class="text-lg font-semibold">How it's made</h2>
+    <.snippet title="The tag and the server, in page.ex" code={page_snippet()} />
+    <.snippet title="The setup, once, in assets/js" code={setup_snippet()} />
     """
   end
+
+  # The code on the page: how this example is made.
+  defp page_snippet,
+    do: ~S"""
+    <.wavesurfer_multitrack
+      id="studio"
+      tracks={@tracks}
+      on_ready="ready"
+      on_recording="recording"
+      on_recorded="recorded"
+    />
+
+    # @tracks: [%{id: "intro", url: ~p"/audio/tone.wav", start_position: 0, draggable: true}, ...]
+    def handle_event("recorded", %{"seconds" => seconds, "bytes" => bytes}, socket), do: ...
+
+    # The buttons are commands: play, pause, start_recording, stop_recording, ...
+    Xenia.push_to(socket, "studio", "start_recording")
+    """
+
+  defp setup_snippet,
+    do: ~S"""
+    import { createWaveSurferMultitrack } from "xenia/wavesurfer-multitrack"
+
+    export const wavesurferMultitrack = createWaveSurferMultitrack({
+      load: async () => {
+        const [ws, record, spectrogram, multitrack] = await Promise.all([
+          import("wavesurfer.js"),
+          import("wavesurfer.js/dist/plugins/record.esm.js"),
+          import("wavesurfer.js/dist/plugins/spectrogram.esm.js"),
+          import("wavesurfer-multitrack"),
+        ])
+        return {
+          WaveSurfer: ws.default,
+          RecordPlugin: record.default,
+          SpectrogramPlugin: spectrogram.default,
+          Multitrack: multitrack.default,
+        }
+      },
+    })
+
+    // app.js
+    createHooks({ WaveSurferMultitrack: wavesurferMultitrack })
+    """
 end

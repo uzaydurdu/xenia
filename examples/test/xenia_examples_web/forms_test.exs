@@ -27,20 +27,43 @@ defmodule XeniaExamplesWeb.FormsTest do
   defp save(view, tags),
     do: render_submit(view, "save", %{"post" => Map.put(@filled, "tags", tags)})
 
-  test "the tags, submitted as one JSON list, are listed", %{conn: conn} do
+  test "the tags, submitted as a list, are listed", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/forms")
-    assert "Tags: phoenix, elixir" in saved(save(view, ~s(["phoenix","elixir"])))
+    assert "Tags: phoenix, elixir" in saved(save(view, ["phoenix", "elixir"]))
   end
 
-  test "tags that aren't a JSON list of strings are no tags, not a crash", %{conn: conn} do
+  test "no tags: the form sends [\"\"], which lists none", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/forms")
+    assert "Tags:" in saved(save(view, [""]))
+  end
+
+  test "tags that aren't a list of strings are no tags, not a crash", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/forms")
 
-    for tags <- ["not json", "5", ~s({"a":1})] do
+    for tags <- ["not a list", ~s(["phoenix"]), %{"a" => "1"}] do
       items = saved(save(view, tags))
-      assert "Title: Hello Xenia" in items, "the page answered for tags=#{tags}"
+      assert "Title: Hello Xenia" in items, "the page answered for tags=#{inspect(tags)}"
       assert "Tags:" in items
     end
+  end
 
-    assert "Tags: phoenix" in saved(save(view, ~s([1,"phoenix"])))
+  test "no tags render one empty input; the adapter gets the list without it",
+       %{conn: conn} do
+    {:ok, view, html} = live(conn, ~p"/forms")
+
+    inputs =
+      html
+      |> LazyHTML.from_document()
+      |> LazyHTML.query("#post_tags > input[data-xenia-field]")
+      |> Enum.map(&{LazyHTML.attribute(&1, "name"), LazyHTML.attribute(&1, "value")})
+
+    assert inputs == [{["post[tags][]"], [""]}]
+    assert Xenia.Test.xenia_props(view, "post_tags")["value"] == []
+
+    render_change(view, "validate", %{"post" => %{"tags" => [""]}})
+    assert Xenia.Test.xenia_props(view, "post_tags")["value"] == []
+
+    render_change(view, "validate", %{"post" => %{"tags" => ["phoenix", "elixir"]}})
+    assert Xenia.Test.xenia_props(view, "post_tags")["value"] == ["phoenix", "elixir"]
   end
 end

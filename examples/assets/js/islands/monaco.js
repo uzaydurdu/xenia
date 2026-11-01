@@ -54,3 +54,24 @@ export const monaco = createMonaco({
   load: () => import("monaco-editor"),
   setup: (monaco) => elixirSnippets(monaco),
 })
+
+// The same editor, read-only while its LiveView is disconnected: what you
+// type then would be lost, because LiveView drops events it can't send.
+// Used by the connection example (lib/xenia_examples_web/app/connection).
+// Xenia gives each island that consumes "connection" its own LiveView's
+// state, "connected" or "disconnected", as an ordinary prop.
+const readOnlyWhileOffline = (editor, connection) =>
+  editor.applyOptions({ readOnly: connection === "disconnected" })
+
+export const offlineMonaco = {
+  ...monaco,
+  consumes: [...monaco.consumes, "connection"],
+  // A mount can happen while disconnected (a lazy island scrolled into
+  // view), so the mount value counts too, not only later changes.
+  mount(el, props, ctx) {
+    const editor = monaco.mount(el, props, ctx)
+    if (props.connection === "disconnected") readOnlyWhileOffline(editor, props.connection)
+    return editor
+  },
+  props: { ...monaco.props, connection: readOnlyWhileOffline },
+}

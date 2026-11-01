@@ -25,6 +25,11 @@ defmodule Xenia.ComponentsTest.Forms do
     prop :max, :integer, default: 5
     event :change
   end
+
+  # A field whose value is a list, like a multi-select.
+  component :tags, adapter: "Tags", form_value: :value do
+    prop :value, :list, default: []
+  end
 end
 
 defmodule Xenia.ComponentsTest do
@@ -249,6 +254,7 @@ defmodule Xenia.ComponentsTest do
                  :on_hover,
                  :shortcuts,
                  :on_crash,
+                 :lazy,
                  :rest
                ])
 
@@ -395,7 +401,7 @@ defmodule Xenia.ComponentsTest do
     end
 
     test "the slot and crash names are Xenia's" do
-      for name <- [:loading, :error, :on_crash] do
+      for name <- [:loading, :error, :on_crash, :lazy] do
         assert_raise ArgumentError, ~r/uses reserved attribute names: \[#{inspect(name)}\]/, fn ->
           compile!(~s|component :c, adapter: "C" do\n  prop #{inspect(name)}, :string\nend|)
         end
@@ -513,6 +519,29 @@ defmodule Xenia.ComponentsTest do
       assert attr(input, "value") == "4"
     end
 
+    # An empty list is submitted as [""] (Xenia.Component renders one empty
+    # input, so the form still sends the field). The adapter gets the list
+    # without the "", as Ecto's cast would: [] for no tags, and a reply to
+    # its own report of [] compares equal to it.
+    test "a submitted list reaches the adapter without the empty-list \"\"" do
+      for {submitted, expected} <- [
+            {[""], []},
+            {["elixir", ""], ["elixir"]},
+            {["elixir", "phoenix"], ["elixir", "phoenix"]}
+          ] do
+        assigns = %{form: to_form(%{"tags" => submitted}, as: :post)}
+
+        element =
+          rendered_to_string(~H"""
+          <Forms.tags field={@form[:tags]} />
+          """)
+          |> find("post_tags")
+
+        assert json_attr(element, "data-xenia-props") == %{"value" => expected}
+        assert Enum.all?(form_input(element), &(attr(&1, "name") == "post[tags][]"))
+      end
+    end
+
     # Without a form the component works exactly as before: an explicit id,
     # an explicit value, and no form input.
     test "still works without a form" do
@@ -560,6 +589,20 @@ defmodule Xenia.ComponentsTest do
                "Loading the chart…"
 
       assert html =~ ~r/<template data-xenia-error>No chart\./
+    end
+
+    test "a declared component passes lazy to the container" do
+      assigns = %{}
+
+      html =
+        rendered_to_string(~H"""
+        <Charts.chart id="sales" type="bar" lazy="visible" />
+        <Charts.chart id="eager" type="bar" />
+        """)
+
+      doc = LazyHTML.from_fragment(html)
+      assert LazyHTML.attribute(LazyHTML.query(doc, "#sales"), "data-xenia-lazy") == ["visible"]
+      assert LazyHTML.attribute(LazyHTML.query(doc, "#eager"), "data-xenia-lazy") == []
     end
 
     test "a form field keeps its input next to the slots" do

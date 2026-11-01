@@ -82,10 +82,16 @@ defmodule XeniaExamples.MixProject do
     [
       setup: ["deps.get", "cmd npm install --prefix assets", "assets.setup", "assets.build"],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
-      "assets.build": ["compile", "tailwind xenia_examples", "esbuild xenia_examples"],
+      "assets.build": [
+        "compile",
+        "tailwind xenia_examples",
+        "esbuild xenia_examples",
+        "esbuild xenia_examples_workers"
+      ],
       "assets.deploy": [
         "tailwind xenia_examples --minify",
         "esbuild xenia_examples --minify",
+        "esbuild xenia_examples_workers --minify",
         "phx.digest"
       ],
       precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"]

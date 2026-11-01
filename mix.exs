@@ -64,7 +64,10 @@ defmodule Xenia.MixProject do
         &check_package/1,
         # HexDocs: the guides and module docs build, and every link resolves.
         "docs --warnings-as-errors",
-        "cmd npm test"
+        "cmd npm test",
+        # The TypeScript declarations (priv/types) against test/types: every
+        # entry point resolves, and the mistakes the fixtures mark are caught.
+        "cmd npm run types"
       ]
     ]
   end
@@ -119,23 +122,31 @@ defmodule Xenia.MixProject do
 
     # Apps write `import { createHooks } from "xenia"` and
     # `import { createMonaco } from "xenia/monaco"`, which esbuild resolves
-    # through package.json's "exports" inside deps/xenia.
+    # through package.json's "exports" inside deps/xenia ("default"), and
+    # TypeScript through the same entry ("types", priv/types).
     %{"exports" => exports} =
       "_build/hex_package/package.json" |> File.read!() |> Jason.decode!()
 
-    for {name, entry} <- exports,
+    for {name, targets} <- exports,
+        {condition, entry} <- export_targets(targets),
         not File.exists?(Path.join("_build/hex_package", entry)) do
-      Mix.raise(~s(package.json export "#{name}" points at #{entry}, which isn't in the package))
+      Mix.raise(
+        ~s|package.json export "#{name}" (#{condition}) points at #{entry}, which isn't in the package|
+      )
     end
 
     # hex.build writes the tarball even with --unpack.
     Enum.each(Path.wildcard("xenia-*.tar"), &File.rm!/1)
 
     Mix.shell().info(
-      "package ok: every bundle and package.json included, " <>
+      "package ok: every bundle, its types and package.json included, " <>
         "exports #{exports |> Map.keys() |> Enum.join(", ")} resolve"
     )
   end
+
+  # An export is a path, or conditions: %{"types" => ..., "default" => ...}.
+  defp export_targets(entry) when is_binary(entry), do: [{"default", entry}]
+  defp export_targets(conditions) when is_map(conditions), do: Map.to_list(conditions)
 
   defp package do
     [
@@ -180,7 +191,8 @@ defmodule Xenia.MixProject do
           Xenia.Component,
           Xenia.Components,
           Xenia.Provider,
-          Xenia.Shortcuts
+          Xenia.Shortcuts,
+          Xenia.Test
         ],
         "App folder: pages from folders": [
           Xenia.Routes,

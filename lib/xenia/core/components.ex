@@ -62,6 +62,7 @@ defmodule Xenia.Components do
     :xenia_events,
     :shortcuts,
     :on_crash,
+    :lazy,
     :loading,
     :error
   ]
@@ -232,6 +233,7 @@ defmodule Xenia.Components do
             events={@xenia_events}
             shortcuts={@shortcuts}
             on_crash={@on_crash}
+            lazy={@lazy}
             {@rest}
           >
             <:loading :for={slot <- @loading}>{render_slot(slot)}</:loading>
@@ -249,6 +251,7 @@ defmodule Xenia.Components do
             events={@xenia_events}
             shortcuts={@shortcuts}
             on_crash={@on_crash}
+            lazy={@lazy}
             {@rest}
           >
             <:loading :for={slot <- @loading}>{render_slot(slot)}</:loading>
@@ -334,6 +337,12 @@ defmodule Xenia.Components do
         doc: "LiveView event sent if the adapter throws (see Xenia.Component)"
       )
 
+      attr(:lazy, :string,
+        default: nil,
+        values: [nil, "visible"],
+        doc: ~s|"visible": mount when the island scrolls into view. nil mounts at once.|
+      )
+
       # Allow class, style, aria-*, data-* and other global attrs.
       attr(:rest, :global)
 
@@ -372,10 +381,16 @@ defmodule Xenia.Components do
         key
       )
       when is_atom(key) and not is_nil(key) do
-    Map.put(props, key, value)
+    Map.put(props, key, form_prop(value))
   end
 
   def __form_props__(props, _field, _key), do: props
+
+  # A submitted list holds "" for an empty list (Xenia.Component renders it,
+  # so the form still sends the field). The adapter gets the list without
+  # it, as Ecto's cast does.
+  defp form_prop(values) when is_list(values), do: Enum.reject(values, &(&1 == ""))
+  defp form_prop(value), do: value
 
   # `form_value: :value` must refer to a declared adapter prop.
   defp validate_form_value!(_component, :error, _props), do: nil

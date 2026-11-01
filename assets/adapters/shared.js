@@ -323,25 +323,12 @@ export const isFiniteNumber = (value) =>
   typeof value === "number" && Number.isFinite(value);
 
 /**
- * A list value. Multi-value form fields submit one hidden input holding a
- * JSON array, so after a validate round trip the value is the string
- * "[\"a\",\"b\"]": that string is decoded. A single value becomes a list of
- * one; nil and "" become [].
+ * A list value: a single value becomes a list of one; nil and "" become [].
+ * (A multi-value form field submits a real list, one input per value.)
  */
 export function toList(value) {
   if (value == null || value === "") return [];
-  if (Array.isArray(value)) return value;
-
-  if (typeof value === "string" && value.trimStart().startsWith("[")) {
-    try {
-      const parsed = JSON.parse(value);
-      if (Array.isArray(parsed)) return parsed;
-    } catch {
-      // Not JSON: a single value, below.
-    }
-  }
-
-  return [value];
+  return Array.isArray(value) ? value : [value];
 }
 
 /**

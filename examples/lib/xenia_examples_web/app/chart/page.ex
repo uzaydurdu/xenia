@@ -58,6 +58,10 @@ defmodule XeniaExamplesWeb.App.ChartPage do
     </div>
 
     <p id="clicked">{if @clicked, do: "You clicked #{@clicked}.", else: "Click a bar."}</p>
+    <h2 class="text-lg font-semibold">How it's made</h2>
+    <.snippet title="The tag, declared in components/islands.ex" code={tag_snippet()} />
+    <.snippet title="The page, in page.ex" code={page_snippet()} />
+    <.snippet title="The adapter, in assets/js/islands/chart.js" code={adapter_snippet()} />
     """
   end
 
@@ -70,4 +74,66 @@ defmodule XeniaExamplesWeb.App.ChartPage do
       datasets: [%{label: "Sales", data: Enum.map(@months, fn _ -> Enum.random(10..100) end)}]
     }
   end
+
+  # The code on the page: how this example is made.
+  defp tag_snippet,
+    do: ~S"""
+    use Xenia.Components
+
+    component :chart, adapter: "Chart" do
+      prop :type, :string, default: "bar"
+      prop :data, :map, required: true
+      event :click
+    end
+    """
+
+  defp page_snippet,
+    do: ~S"""
+    <.chart id="sales" type={@type} data={@data} on_click="bar_clicked" />
+
+    def handle_event("bar_clicked", %{"label" => label}, socket),
+      do: {:noreply, assign(socket, clicked: label)}
+
+    # A command for this chart only
+    Xenia.push_to(socket, "sales", "highlight", %{index: 2})
+    """
+
+  defp adapter_snippet,
+    do: ~S"""
+    import Chart from "chart.js/auto"
+
+    export const chart = {
+      mount(el, props, ctx) {
+        const canvas = el.appendChild(document.createElement("canvas"))
+        return new Chart(canvas, {
+          type: props.type,
+          data: props.data,
+          options: {
+            onClick(_event, points, chart) {
+              if (points[0]) ctx.emit("click", { label: chart.data.labels[points[0].index] })
+            },
+          },
+        })
+      },
+      destroy: (chart) => chart.destroy(),
+      props: {
+        data(chart, data) {
+          chart.data = data
+          chart.update()
+        },
+        // Chart.js can't change type in place: a fresh chart, with the latest props
+        type: (_chart, _type, ctx) => ctx.remount(),
+      },
+      events: { click: {} },
+      commands: {
+        highlight(chart, { index }) {
+          chart.setActiveElements([{ datasetIndex: 0, index }])
+          chart.update()
+        },
+      },
+    }
+
+    // app.js
+    createHooks({ Chart: chart })
+    """
 end

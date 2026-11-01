@@ -53,9 +53,34 @@ defmodule XeniaExamplesWeb.App.Examples do
         summary: "What an island shows while it loads, and when it breaks. With a retry."
       },
       %{
+        path: ~p"/lazy",
+        title: "Lazy islands",
+        summary: "An editor that starts, and downloads, only when you scroll to it."
+      },
+      %{
         path: ~p"/colocated",
         title: "Island in a page",
         summary: "An adapter that lives inside the page that uses it."
+      },
+      %{
+        path: ~p"/large-data",
+        title: "Large data",
+        summary: "A long series sent as a prop, and by commands: compare what each update sends."
+      },
+      %{
+        path: ~p"/typed",
+        title: "A typed island",
+        summary: "An adapter written in TypeScript, checked before the page runs."
+      },
+      %{
+        path: ~p"/listeners",
+        title: "Listeners outside the island",
+        summary: "A listener on the whole page, removed for you when the island goes."
+      },
+      %{
+        path: ~p"/connection",
+        title: "Connection",
+        summary: "An editor that stops you typing while the connection is down."
       },
       %{
         path: ~p"/two-editors",

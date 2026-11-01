@@ -64,6 +64,38 @@ defmodule XeniaExamplesWeb.App.Adapters.MonacoDiffPage do
 
     <p id="changes">{if @changes, do: "Changed blocks: #{@changes}."}</p>
     <p id="lines">The server has {length(String.split(@modified, "\n"))} lines on the right.</p>
+    <h2 class="text-lg font-semibold">How it's made</h2>
+    <.snippet title="The tag and the server, in page.ex" code={page_snippet()} />
+    <.snippet title="The setup, once, in assets/js" code={setup_snippet()} />
     """
   end
+
+  # The code on the page: how this example is made.
+  defp page_snippet,
+    do: ~S"""
+    <.monaco_diff
+      id="diff"
+      original={@original}
+      modified={%{value: @modified, version: @version}}
+      language="elixir"
+      on_change="changed"
+      on_diff="diffed"
+    />
+
+    def handle_event("changed", %{"value" => value, "version" => version}, socket),
+      do: {:noreply, assign(socket, modified: value, version: version)}
+
+    Xenia.push_to(socket, "diff", "next_diff")
+    """
+
+  defp setup_snippet,
+    do: ~S"""
+    import { createMonacoDiff } from "xenia/monaco-diff"
+
+    // It shares Monaco (and its web workers) with the code editor.
+    export const monacoDiff = createMonacoDiff({ load: () => import("monaco-editor") })
+
+    // app.js
+    createHooks({ MonacoDiff: monacoDiff })
+    """
 end

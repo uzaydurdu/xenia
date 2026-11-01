@@ -98,6 +98,42 @@ defmodule XeniaExamplesWeb.App.Adapters.TomSelectPage do
     </div>
 
     <p id="country">{if @country, do: "You picked #{@country}.", else: "No country yet."}</p>
+    <h2 class="text-lg font-semibold">How it's made</h2>
+    <.snippet title="The tags, in page.ex" code={page_snippet()} />
+    <.snippet title="A server search, in page.ex: the reply is the results" code={search_snippet()} />
+    <.snippet title="The setup, once, in assets/js" code={setup_snippet()} />
     """
   end
+
+  # The code on the page: how this example is made.
+  defp page_snippet,
+    do: ~S"""
+    <.tom_select id="langs" options={@options} value={@value} multiple create on_change="changed" />
+
+    <.tom_select id="countries" remote options={[]} on_search="search_countries" on_change="country_picked" />
+    """
+
+  defp search_snippet,
+    do: ~S"""
+    def handle_event("search_countries", %{"query" => query}, socket) do
+      matches =
+        for name <- @countries, String.contains?(String.downcase(name), String.downcase(query)),
+            do: %{value: String.downcase(name), text: name}
+
+      {:reply, %{options: matches}, socket}
+    end
+    """
+
+  defp setup_snippet,
+    do: ~S"""
+    import { createTomSelect } from "xenia/tom-select"
+
+    export const tomSelect = createTomSelect({ load: () => import("tom-select") })
+
+    // app.js
+    createHooks({ TomSelect: tomSelect })
+
+    /* app.css */
+    @import "../node_modules/tom-select/dist/css/tom-select.css";
+    """
 end

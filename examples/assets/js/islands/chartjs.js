@@ -62,3 +62,60 @@ function emitTotal(data, ctx) {
   const values = (data?.datasets ?? []).flatMap((dataset) => dataset.data ?? [])
   ctx.emit("total", { total: values.reduce((sum, value) => sum + value, 0) })
 }
+
+// 3. A live chart: its points arrive as commands, not as a prop, so each
+//    update sends only the new points, however long the series is. Used by
+//    the large data example (lib/xenia_examples_web/app/large-data).
+//
+//    The server keeps the series, and sends it whole when the chart says
+//    `ready`: when it mounts, and when its LiveView has reconnected (a new
+//    LiveView process, which doesn't know what this chart shows).
+export const liveChart = {
+  ...chartjs,
+  consumes: [...chartjs.consumes, "connection"],
+
+  async mount(el, props, ctx) {
+    const instance = await chartjs.mount(el, props, ctx)
+    ctx.emit("ready", {})
+    return instance
+  },
+
+  props: {
+    ...chartjs.props,
+    connection(_instance, connection, ctx) {
+      if (connection === "connected") ctx.emit("ready", {})
+    },
+  },
+
+  events: { ...chartjs.events, ready: {} },
+
+  commands: {
+    ...chartjs.commands,
+
+    // The whole series, after `ready`.
+    replace_points(instance, { labels, values }, ctx) {
+      setSeries(instance, labels, values, ctx)
+    },
+
+    // New points at the end. With `max`, only the last `max` points stay.
+    append_points(instance, { labels, values, max }, ctx) {
+      const data = instance.config.data ?? {}
+      const keep = (list) => (max ? list.slice(-max) : list)
+
+      setSeries(
+        instance,
+        keep([...(data.labels ?? []), ...labels]),
+        keep([...(data.datasets?.[0]?.data ?? []), ...values]),
+        ctx,
+      )
+    },
+  },
+}
+
+// Through the official `data` handler, so the chart keeps the points when
+// it's rebuilt, e.g. for a new `type`.
+function setSeries(instance, labels, values, ctx) {
+  const data = instance.config.data ?? {}
+  const [dataset = {}] = data.datasets ?? []
+  chartjs.props.data(instance, { ...data, labels, datasets: [{ ...dataset, data: values }] }, ctx)
+}

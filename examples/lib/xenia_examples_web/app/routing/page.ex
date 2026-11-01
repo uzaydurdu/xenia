@@ -97,6 +97,42 @@ defmodule XeniaExamplesWeb.App.RoutingPage do
       checks a link at compile time, and <code>mix xenia.routes</code>
       also shows each page's layouts.
     </p>
+    <h2 class="text-lg font-semibold">How it's made</h2>
+    <.snippet title="A page with a parameter: posts/[slug]/page.ex" code={page_snippet()} />
+    <.snippet title="A layout for every page below it: routing/layout.ex" code={layout_snippet()} />
     """
   end
+
+  # The code on the page: how this example is made.
+  defp page_snippet,
+    do: ~S'''
+    defmodule MyAppWeb.App.Routing.Posts.SlugPage do
+      use MyAppWeb, :live_view
+      use Xenia.Page
+
+      # The folder [slug] is the URL's :slug
+      def mount(%{"slug" => slug}, _session, socket), do: {:ok, assign(socket, slug: slug)}
+
+      def render(assigns) do
+        ~H"""
+        <h1>Post {@slug}</h1>
+        """
+      end
+    end
+    '''
+
+  defp layout_snippet,
+    do: ~S'''
+    defmodule MyAppWeb.App.RoutingLayout do
+      use MyAppWeb, :html
+      use Xenia.Layout
+
+      def frame(assigns) do
+        ~H"""
+        <nav><.link navigate={~p"/routing"}>Overview</.link></nav>
+        {@inner_content}
+        """
+      end
+    end
+    '''
 end

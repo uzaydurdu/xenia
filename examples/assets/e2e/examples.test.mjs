@@ -8,6 +8,7 @@
 import { test, before, after } from "node:test"
 import assert from "node:assert/strict"
 import { chromium } from "playwright"
+import { isBrowserError } from "./console.mjs"
 
 const BASE = process.env.E2E_URL ?? "http://localhost:4002"
 const SETTLE = 400
@@ -21,7 +22,7 @@ async function open(path) {
   const page = await browser.newPage()
   const problems = []
   page.on("pageerror", (e) => problems.push(e.message))
-  page.on("console", (m) => { if (m.type() === "error") problems.push(m.text()) })
+  page.on("console", (m) => { if (isBrowserError(m)) problems.push(m.text()) })
   await page.goto(BASE + path)
   await connected(page)
   return { page, problems }
@@ -57,7 +58,7 @@ const pixel = (page, selector, fx, fy) =>
 test("home lists every example, and the sidebar stays alive across pages", async () => {
   const { page, problems } = await open("/")
 
-  assert.equal(await page.locator(".examples li").count(), 31)
+  assert.equal(await page.locator(".examples li").count(), 36)
   assert.equal(await text(page, "#pages-seen"), "1")
   await mark(page, "#sidebar")
 
@@ -69,6 +70,28 @@ test("home lists every example, and the sidebar stays alive across pages", async
   assert.equal(await text(page, "#pages-seen"), "3")
   assert.equal(await marked(page, "#sidebar"), true, "the sidebar was not rebuilt")
   assert.equal(await page.getAttribute("#sidebar a[href='/rating']", "data-active"), "true")
+  assert.deepEqual(problems, [])
+  await page.close()
+})
+
+// Every example shows how it's made: a "How it's made" section of short
+// snippets (<.snippet>), each with its code.
+test("every example on the home page shows how it's made", async () => {
+  const { page, problems } = await open("/")
+  const paths = await page.locator(".examples li a").evaluateAll((links) =>
+    links.map((link) => new URL(link.href).pathname),
+  )
+  assert.equal(paths.length, 36)
+
+  const without = []
+  for (const path of paths) {
+    await page.goto(BASE + path)
+    await connected(page)
+    const codes = await page.locator("figure pre code").allTextContents()
+    if (codes.length === 0 || codes.some((code) => code.trim() === "")) without.push(path)
+  }
+
+  assert.deepEqual(without, [], "examples without snippets")
   assert.deepEqual(problems, [])
   await page.close()
 })
@@ -449,7 +472,7 @@ test("loading and errors: a placeholder while it loads, an error slot, on_crash 
   page.on("pageerror", (e) => problems.push(e.message))
   page.on("console", (m) => {
     // The broken island's failure is logged on purpose.
-    if (m.type() === "error" && !m.text().includes("Mount failed")) problems.push(m.text())
+    if (isBrowserError(m) && !m.text().includes("Mount failed")) problems.push(m.text())
   })
   await page.goto(BASE + "/loading")
   await page.waitForSelector("[data-phx-main].phx-connected")

@@ -86,6 +86,12 @@ defmodule XeniaExamplesWeb.App.FormsPage do
         <li :for={{label, value} <- @saved}><span class="opacity-70">{label}:</span> {value}</li>
       </ul>
     </section>
+
+    <h2 class="text-lg font-semibold">How it's made</h2>
+    <div class="space-y-4">
+      <.snippet title="Any island as a form field, in page.ex" code={fields_snippet()} />
+      <.snippet title="Tags arrive as a list" code={tags_snippet()} />
+    </div>
     """
   end
 
@@ -115,7 +121,7 @@ defmodule XeniaExamplesWeb.App.FormsPage do
           "code" => "",
           "body" => "",
           "due" => "",
-          "tags" => "[]",
+          "tags" => [],
           "priority" => "0"
         },
         params
@@ -147,20 +153,37 @@ defmodule XeniaExamplesWeb.App.FormsPage do
     ]
   end
 
-  # Tom Select's `multiple` submits its list as one JSON string. The browser
-  # can send anything, so a value that isn't a JSON list of strings counts
-  # as no tags rather than crashing the page.
-  defp tags(json) when is_binary(json) do
-    case Jason.decode(json) do
-      {:ok, list} when is_list(list) -> Enum.filter(list, &is_binary/1)
-      _ -> []
-    end
-  end
-
+  # Tom Select's `multiple` submits a list, one value per input, and [""]
+  # when nothing is selected. (An Ecto {:array, :string} field would drop
+  # the "" itself.) The browser can send anything, so a value that isn't a
+  # list counts as no tags rather than crashing the page.
+  defp tags(list) when is_list(list), do: Enum.filter(list, &(is_binary(&1) and &1 != ""))
   defp tags(_), do: []
 
   defp blank?(value), do: String.trim(value || "") == ""
 
   defp strip_tags(html),
     do: (html || "") |> String.replace(~r/<[^>]*>/, " ") |> String.split() |> Enum.join(" ")
+
+  # The code on the page: how this example is made.
+  defp fields_snippet,
+    do: ~S"""
+    <.form for={@form} phx-change="validate" phx-submit="save">
+      <.input field={@form[:title]} label="Title" />
+      <.monaco field={@form[:code]} language="elixir" />
+      <.tiptap field={@form[:body]} toolbar={true} />
+      <.flatpickr field={@form[:due]} min_date="today" />
+      <.tom_select field={@form[:tags]} options={@tags} multiple create />
+      <.shoelace_rating field={@form[:priority]} />
+    </.form>
+    """
+
+  defp tags_snippet,
+    do: ~S"""
+    # One hidden input per tag, so the params hold a list:
+    %{"post" => %{"tags" => ["phoenix", "elixir"]}}
+
+    # which an Ecto array field casts directly:
+    field :tags, {:array, :string}
+    """
 end

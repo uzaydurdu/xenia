@@ -36,6 +36,47 @@ defmodule XeniaExamplesWeb.App.ThemePage do
         <.chart id="pinned" data={@data} theme="light" style="height: 220px" class="rounded bg-white" />
       </div>
     </div>
+    <h2 class="text-lg font-semibold">How it's made</h2>
+    <.snippet title="The tags, in page.ex" code={tag_snippet()} />
+    <.snippet
+      title="The adapter asks for the theme, in assets/js/islands/chart.js"
+      code={adapter_snippet()}
+    />
+    <.snippet title="The app publishes it once, in assets/js/app.js" code={app_snippet()} />
     """
   end
+
+  # The code on the page: how this example is made.
+  defp tag_snippet,
+    do: ~S"""
+    <.chart id="follows" data={@data} />
+    <.chart id="pinned" data={@data} theme="light" />
+    """
+
+  defp adapter_snippet,
+    do: ~S"""
+    export const chart = {
+      consumes: ["theme"], // arrives as a `theme` prop, like any other
+      props: {
+        theme(chart, theme, ctx) {
+          chart.options = options(theme, ctx) // light or dark colors
+          chart.update()
+        },
+      },
+      // ...
+    }
+    """
+
+  defp app_snippet,
+    do: ~S"""
+    import { setProvider } from "xenia"
+
+    // Phoenix's theme toggle keeps <html data-theme> current.
+    const publishTheme = () =>
+      setProvider("theme", document.documentElement.dataset.theme ?? "light")
+
+    publishTheme()
+    new MutationObserver(publishTheme)
+      .observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] })
+    """
 end

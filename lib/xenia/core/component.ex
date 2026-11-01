@@ -48,6 +48,11 @@ defmodule Xenia.Component do
         <.xenia field={@form[:code]} adapter="Monaco" props={...} />
       </.form>
 
+  A field whose value is a list (an Ecto `{:array, _}` field) is submitted
+  as a list, one value per input. The adapter writes it with
+  `ctx.setFormValue(["a", "b"])`. An empty list is submitted as `[""]`,
+  which Ecto's cast turns into `[]`.
+
   Keyboard shortcuts, while focus is inside the component, send LiveView
   events (see `Xenia.Shortcuts`):
 
@@ -80,6 +85,16 @@ defmodule Xenia.Component do
       </.xenia>
 
   Neither needs any adapter code.
+
+  `lazy="visible"` starts the island only when it comes within 200 px of
+  the screen, so a library loaded with `load: () => import(...)` is also
+  downloaded only then, if the app uses code splitting. Until then,
+  `<:loading>` shows, commands wait, and the island starts with the latest
+  props:
+
+      <.xenia id="editor" adapter="Monaco" props={...} lazy="visible" style="height: 400px">
+        <:loading>The editor starts when you scroll here.</:loading>
+      </.xenia>
   """
 
   use Phoenix.Component
@@ -119,6 +134,12 @@ defmodule Xenia.Component do
   attr(:on_crash, :string,
     default: nil,
     doc: "LiveView event sent when the adapter throws, with id, phase and message"
+  )
+
+  attr(:lazy, :string,
+    default: nil,
+    values: [nil, "visible"],
+    doc: ~s|"visible": mount when the island scrolls into view. nil mounts at once.|
   )
 
   attr(:rest, :global, doc: "Additional HTML attributes not managed by Xenia")
@@ -162,6 +183,7 @@ defmodule Xenia.Component do
         shortcuts_json: if(shortcuts != %{}, do: encode!(shortcuts, "shortcuts", id)),
         # Where ctx.call pushes from, when the page binds any event (see below).
         call_hook: if(assigns.events != %{}, do: %{"#{prefix}hook" => "XeniaCall"}),
+        field_values: field_values(assigns.field, id),
         form_value: form_value(assigns.field, id),
         rest: reject_reserved!(assigns.rest, prefix, id)
       )
@@ -175,10 +197,21 @@ defmodule Xenia.Component do
       data-xenia-events={@events_json}
       data-xenia-shortcuts={@shortcuts_json}
       data-xenia-crash={@on_crash}
+      data-xenia-lazy={@lazy}
       {@rest}
     >
+      <%!-- A list: one input per value, so Phoenix submits post[tags][] as a list. --%>
       <input
-        :if={@field}
+        :for={value <- @field_values || []}
+        type="text"
+        hidden
+        autocomplete="off"
+        data-xenia-field
+        name={@field.name <> "[]"}
+        value={value}
+      />
+      <input
+        :if={@field && is_nil(@field_values)}
         type="text"
         hidden
         autocomplete="off"
@@ -321,8 +354,10 @@ defmodule Xenia.Component do
   #     tree;
   #   * `autocomplete="off"` stops browsers from restoring or autofilling a
   #     stale value;
-  #   * `data-xenia-field` marks it as the one input the JavaScript core
-  #     writes to.
+  #   * `data-xenia-field` marks the inputs the JavaScript core writes to.
+  #
+  # A field whose value is a list gets one such input per value, named
+  # `post[tags][]`, so Phoenix submits a list.
 
   # The id also identifies the command channel "xenia:command:<id>",
   # and HTML ids must not contain whitespace.
@@ -415,6 +450,17 @@ defmodule Xenia.Component do
 
     rest
   end
+
+  # A field whose value is a list: one string per value, else nil. An
+  # empty list is one "", so the form still submits the field (Ecto's cast
+  # removes empty strings from arrays). Mirrors setFormValues() in
+  # controller.js.
+  defp field_values(%Phoenix.HTML.FormField{value: []}, _id), do: [""]
+
+  defp field_values(%Phoenix.HTML.FormField{value: values}, id) when is_list(values),
+    do: Enum.map(values, &to_form_string(&1, id))
+
+  defp field_values(_field, _id), do: nil
 
   # The form input's value: the field's value as the string an HTML
   # input holds. Mirrors formValueToString() in controller.js, so the

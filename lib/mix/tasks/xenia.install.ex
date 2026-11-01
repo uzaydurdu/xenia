@@ -1,5 +1,5 @@
 defmodule Mix.Tasks.Xenia.Install do
-  @shortdoc "Sets up a new Phoenix app with Xenia: theme, layout, app folder and hooks"
+  @shortdoc "Sets up Xenia in a Phoenix app (--islands-only: just the hooks, for an existing app)"
 
   @moduledoc """
   Turns a freshly generated Phoenix 1.8 app into a Xenia app.
@@ -27,6 +27,8 @@ defmodule Mix.Tasks.Xenia.Install do
       descriptions and social tags (`Xenia.Metadata`), in place of
       Phoenix's " · Phoenix Framework" title suffix
     * `.formatter.exs`: `:xenia` in `import_deps`
+    * `assets/tsconfig.json`: where Xenia's TypeScript types are, so editors
+      and `tsc` find them for `"xenia"` and `"xenia/chartjs"` imports
     * `lib/my_app_web/router.ex`: the home route replaced by
       `xenia_routes "lib/my_app_web/app"`, inside a `live_session`
     * `test/my_app_web/controllers/page_controller_test.exs`: checks the new
@@ -40,7 +42,29 @@ defmodule Mix.Tasks.Xenia.Install do
   is printed instead. Phoenix's `PageController` files stay; delete them
   when you no longer need them.
 
+  ## In an existing app
+
+      $ mix xenia.install --islands-only
+
+  makes only the changes JavaScript islands need, and leaves the app's
+  theme, layout, flash messages, routes and home page alone:
+
+    * `assets/js/app.js`: `createHooks` from `"xenia"` in the LiveSocket's
+      hooks, next to any hooks it already spreads (Surface's, for example),
+      and the app's theme published for components that follow it
+    * `lib/my_app_web.ex`: `import Xenia.Component` in `html_helpers`
+    * `.formatter.exs`: `:xenia` in `import_deps`
+    * `assets/tsconfig.json`: where Xenia's TypeScript types are
+
+  It doesn't change an existing app's esbuild config: the steps for code
+  splitting, so pages download only the libraries their islands use, are
+  printed instead.
+
   ## Options
+
+    * `--islands-only` - only the hooks, the import, the formatter and the
+      TypeScript paths, for an app that already has its own theme, layout
+      and routes
 
     * `--web-module` and `--web-path` - `MyAppWeb` and `lib/my_app_web` by
       default, from the app's name
@@ -50,7 +74,7 @@ defmodule Mix.Tasks.Xenia.Install do
 
   alias Mix.Xenia.Gen
 
-  @switches [web_module: :string, web_path: :string]
+  @switches [web_module: :string, web_path: :string, islands_only: :boolean]
 
   @impl true
   def run(args) do
@@ -65,31 +89,60 @@ defmodule Mix.Tasks.Xenia.Install do
       app_folder: Path.join(web.path, "app")
     }
 
-    results = [
-      css(context),
-      javascript(context),
-      html_helpers(context),
-      flash(context),
-      flash_group(context),
-      root_layout(context),
-      formatter(context),
-      router(context),
-      home_test(context),
-      app_folder(context),
-      logo(context)
-    ]
+    islands_only? = Keyword.get(opts, :islands_only, false)
+    results = Enum.map(steps(islands_only?), & &1.(context))
 
     for {status, message} <- List.flatten(results), do: report(status, message)
 
-    manual = for {:manual, _} <- List.flatten(results), do: true
+    manual? = Enum.any?(List.flatten(results), &match?({:manual, _}, &1))
+    Gen.info(closing(islands_only?, manual?))
+  end
 
-    Gen.info([
+  # --islands-only: what islands need. An existing app keeps its theme,
+  # layout, flash messages, routes and home page.
+  defp steps(true), do: [&javascript/1, &html_helpers/1, &formatter/1, &typescript/1]
+
+  defp steps(false) do
+    [
+      &css/1,
+      &javascript/1,
+      &html_helpers/1,
+      &flash/1,
+      &flash_group/1,
+      &root_layout/1,
+      &formatter/1,
+      &typescript/1,
+      &router/1,
+      &home_test/1,
+      &app_folder/1,
+      &logo/1
+    ]
+  end
+
+  defp closing(true, manual?) do
+    [
+      "",
+      "Done: the app can host JavaScript islands.",
+      if(manual?, do: "Some steps need you: see \"by hand\" above."),
+      "Add one with `mix xenia.gen.component`, or an official adapter",
+      "(Monaco, Chart.js, Tiptap, ...): https://hexdocs.pm/xenia",
+      "",
+      "So that each page downloads only the libraries its islands use, turn on",
+      "code splitting: add `--splitting --format=esm` to the esbuild args in",
+      "config/config.exs, and load app.js with <script type=\"module\">. See",
+      "\"Code splitting\" in Xenia's README (Monaco's workers need a profile of",
+      "their own)."
+    ]
+  end
+
+  defp closing(false, manual?) do
+    [
       "",
       "Done. Start the app with `mix phx.server` and open http://localhost:4000.",
-      if(manual != [], do: "Some steps need you: see \"by hand\" above."),
+      if(manual?, do: "Some steps need you: see \"by hand\" above."),
       "Add a JavaScript library with `mix xenia.gen.component`, or an official adapter",
       "(Monaco, Chart.js, Tiptap, ...): https://hexdocs.pm/xenia"
-    ])
+    ]
   end
 
   # --- Steps --------------------------------------------------------------------
@@ -219,6 +272,65 @@ defmodule Mix.Tasks.Xenia.Install do
            ), "#{path}: import Xenia.Component in html_helpers"}
       end
     end)
+  end
+
+  # Phoenix's tsconfig maps "*" to "../deps/*". TypeScript reads that as a
+  # path, not a package, so it never sees Xenia's package.json "exports":
+  # "xenia" resolves, "xenia/chartjs" doesn't. Two explicit entries fix it
+  # (CLAUDE.md §6, "TypeScript declarations").
+  @phoenix_paths ~r/^([ \t]*)"\*": \["\.\.\/deps\/\*"\](,?)[ \t]*$/m
+
+  @doc false
+  def typescript(%{}) do
+    path = "assets/tsconfig.json"
+    types = relative(Path.join(xenia_dir(), "priv/types"), Path.expand("assets"))
+    entries = [~s("xenia": ["#{types}/xenia.d.ts"]), ~s("xenia/*": ["#{types}/*.d.ts"])]
+
+    if File.exists?(path) do
+      with_file(path, fn source ->
+        cond do
+          String.contains?(source, ~s("xenia/*")) ->
+            {:skipped, "#{path}: already has Xenia's types"}
+
+          not Regex.match?(@phoenix_paths, source) ->
+            {:manual,
+             "#{path}: for Xenia's TypeScript types, add to \"paths\" in compilerOptions:\n\n" <>
+               Enum.map_join(entries, ",\n", &("    " <> &1))}
+
+          true ->
+            source =
+              Regex.replace(
+                @phoenix_paths,
+                source,
+                fn _line, indent, comma ->
+                  Enum.map_join([~s("*": ["../deps/*"]) | entries], ",\n", &(indent <> &1)) <>
+                    comma
+                end,
+                global: false
+              )
+
+            # TypeScript 7 refuses the baseUrl Phoenix generates; it's
+            # Phoenix's setting, so it's only pointed out.
+            note =
+              if String.contains?(source, ~s("baseUrl")),
+                do: ~s| (for TypeScript 7, also remove "baseUrl")|,
+                else: ""
+
+            {:write, source,
+             ~s(#{path}: Xenia's types, for "xenia" and "xenia/<adapter>") <> note}
+        end
+      end)
+    else
+      {:skipped, "#{path}: none, so no TypeScript paths to add"}
+    end
+  end
+
+  # The path from `from` to `to`, both absolute, e.g. "../deps/xenia/priv/types".
+  # (Path.relative_to/3 does this with `force: true`, from Elixir 1.16.)
+  defp relative(to, from) do
+    {to, from} = {Path.split(to), Path.split(from)}
+    common = Enum.zip(to, from) |> Enum.take_while(fn {a, b} -> a == b end) |> length()
+    Path.join(List.duplicate("..", length(from) - common) ++ Enum.drop(to, common))
   end
 
   # Phoenix's flash/1 as Phoenix 1.8 generates it, with or without Gettext.

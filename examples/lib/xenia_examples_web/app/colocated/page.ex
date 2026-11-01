@@ -76,6 +76,37 @@ defmodule XeniaExamplesWeb.App.ColocatedPage do
         },
       })
     </script>
+    <h2 class="text-lg font-semibold">How it's made</h2>
+    <.snippet title="The island and its adapter, both in page.ex" code={island_snippet()} />
     """
   end
+
+  # The code on the page: how this example is made.
+  defp island_snippet,
+    do: ~S"""
+    <.xenia id="sparkline" adapter={colocated(".Sparkline")} props={%{points: @points}} />
+
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".Sparkline">
+      import Chart from "chart.js/auto"
+      import { adapterHook } from "xenia"
+
+      export default adapterHook({
+        mount(el, props) {
+          const canvas = el.appendChild(document.createElement("canvas"))
+          return new Chart(canvas, {
+            type: "line",
+            data: { labels: props.points.map((_, i) => i + 1), datasets: [{ data: props.points }] },
+          })
+        },
+        destroy: (chart) => chart.destroy(),
+        props: {
+          points(chart, points) {
+            chart.data.labels = points.map((_, i) => i + 1)
+            chart.data.datasets[0].data = points
+            chart.update()
+          },
+        },
+      })
+    </script>
+    """
 end

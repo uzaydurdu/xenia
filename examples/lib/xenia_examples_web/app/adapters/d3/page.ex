@@ -49,6 +49,9 @@ defmodule XeniaExamplesWeb.App.Adapters.D3Page do
     </div>
 
     <p id="selected">{@selected || "Click a bar, a point or a slice."}</p>
+    <h2 class="text-lg font-semibold">How it's made</h2>
+    <.snippet title="The tag and the server, in page.ex" code={page_snippet()} />
+    <.snippet title="The setup, once, in assets/js" code={setup_snippet()} />
     """
   end
 
@@ -57,4 +60,33 @@ defmodule XeniaExamplesWeb.App.Adapters.D3Page do
       %{x: month, y: if(series == "North", do: 10 + i * 4, else: 18 - i * 2), series: series}
     end
   end
+
+  # The code on the page: how this example is made.
+  defp page_snippet,
+    do: ~S"""
+    <.d3_chart
+      id="orders"
+      kind={@kind}
+      data={@data}
+      options={%{y_label: "Orders"}}
+      on_select="selected"
+    />
+
+    # @data is long format: one map per point
+    [%{x: "Jan", y: 42, series: "North"}, %{x: "Jan", y: 30, series: "South"}, ...]
+
+    def handle_event("selected", %{"x" => x, "y" => y}, socket), do: ...
+
+    Xenia.push_to(socket, "orders", "highlight", %{x: "Mar", series: "North"})
+    """
+
+  defp setup_snippet,
+    do: ~S"""
+    import { createD3 } from "xenia/d3"
+
+    export const d3 = createD3({ load: () => import("d3") })
+
+    // app.js
+    createHooks({ D3: d3 })
+    """
 end
