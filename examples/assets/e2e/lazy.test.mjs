@@ -25,46 +25,61 @@ after(async () => { await browser?.close() })
 async function open(path) {
   const page = await browser.newPage({ viewport: { width: 1200, height: 800 } })
   const problems = []
-  const monaco = [] // the scripts with Monaco in them, as they arrive
+  const scripts = [] // every script the page requested, in order
   page.on("pageerror", (e) => problems.push(e.message))
   page.on("console", (m) => { if (isBrowserError(m)) problems.push(m.text()) })
-
-  // Reading a script's body takes time (Monaco's is several MB), and can
-  // finish after the editor is on screen. Each read is kept, so a test can
-  // wait for them before it counts.
-  const pending = new Set()
-  page.on("response", (res) => {
-    if (res.request().resourceType() !== "script") return
-    const read = res.text().catch(() => "").then((body) => {
-      if (body.includes(MONACO)) monaco.push(new URL(res.url()).pathname)
-    })
-    pending.add(read)
-    read.finally(() => pending.delete(read))
-  })
-  const reads = () => Promise.all([...pending])
+  page.on("request", (req) => { if (req.resourceType() === "script") scripts.push(req.url()) })
 
   await page.goto(BASE + path)
   await page.waitForSelector("[data-phx-main].phx-connected")
-  return { page, problems, monaco, reads }
+  return { page, problems, scripts }
 }
+
+// Which of these scripts contain Monaco. The test fetches each one itself:
+// reading Monaco's 20 MB body back out of the browser (response.text()) was
+// unreliable on CI, and a response event can trail what the page shows.
+const bodies = new Map()
+const containsMonaco = (url) => {
+  if (!bodies.has(url)) bodies.set(url, fetch(url).then((r) => r.text()).then((b) => b.includes(MONACO)))
+  return bodies.get(url)
+}
+async function monacoScripts(scripts) {
+  const urls = [...scripts]
+  const flags = await Promise.all(urls.map(containsMonaco))
+  return urls.filter((_, i) => flags[i]).map((url) => new URL(url).pathname)
+}
+
+// Polls `check` until it returns something truthy, or the time is up.
+async function eventually(check, ms = 15_000) {
+  const deadline = Date.now() + ms
+  for (;;) {
+    const value = await check()
+    if (value || Date.now() > deadline) return value
+    await new Promise((resolve) => setTimeout(resolve, 200))
+  }
+}
+
+const paths = (scripts) => scripts.map((url) => new URL(url).pathname).join(", ")
 
 // Monaco renders spaces as non-breaking spaces; compare plain text.
 const editorText = async (page) =>
   (await page.locator("#later .view-lines").innerText()).replace(/\u00a0/g, " ")
 
 test("a lazy editor below the fold isn't downloaded or started until you scroll to it", async () => {
-  const { page, problems, monaco, reads } = await open("/lazy")
+  const { page, problems, scripts } = await open("/lazy")
   await page.waitForTimeout(1500)
-  await reads()
 
   assert.equal(await page.locator("#later .monaco-editor").count(), 0, "not started")
   assert.ok(await page.locator("#later [data-xenia-loading]").isVisible(), "the placeholder shows")
-  assert.deepEqual(monaco, [], "Monaco not downloaded")
+  assert.deepEqual(await monacoScripts(scripts), [], `Monaco not downloaded; scripts: ${paths(scripts)}`)
 
   await page.locator("#later").scrollIntoViewIfNeeded()
   await page.waitForSelector("#later .monaco-editor .view-lines")
-  await reads() // the editor runs, so Monaco's response has arrived
-  assert.equal(monaco.length, 1, "Monaco downloaded once it was needed")
+  const monaco = (await eventually(async () => {
+    const found = await monacoScripts(scripts)
+    return found.length > 0 && found
+  })) || []
+  assert.equal(monaco.length, 1, `Monaco downloaded once it was needed; scripts: ${paths(scripts)}`)
   assert.match(await editorText(page), /An editor that waited for you/, "the server's value")
   assert.deepEqual(problems, [])
   await page.close()
@@ -92,14 +107,13 @@ test("a command sent before the island is visible arrives once it starts", async
 })
 
 test("leaving before the island is visible: nothing downloaded, no errors", async () => {
-  const { page, problems, monaco, reads } = await open("/lazy")
+  const { page, problems, scripts } = await open("/lazy")
   await page.click("#sidebar a[href='/chart']")
   await page.waitForURL(BASE + "/chart")
   await page.waitForSelector("#sales canvas")
   await page.waitForTimeout(1000)
-  await reads()
 
-  assert.deepEqual(monaco, [])
+  assert.deepEqual(await monacoScripts(scripts), [], `scripts: ${paths(scripts)}`)
   assert.deepEqual(problems, [])
   await page.close()
 })
