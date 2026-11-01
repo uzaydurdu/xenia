@@ -13,14 +13,11 @@ and the contract is explicit. That is the architecture.
 the implementation so the API can be criticised cheaply.
 `docs/MENTOR_PROMPT.md` — session starter.
 
-**Current status (2026-10-28):**
-- **Released:** Xenia 0.1.0 and 0.1.1 on Hex (2026-10-25), from the public
-  repository `github.com/uzaydurdu/xenia`.
-- **0.1.2:** complete and committed locally, waiting for the author's
-  push and Hex publish. It brings Surface UI support, installer fixes,
-  requirements that match what's tested, browser tests in CI, a nightly job
-  on the newest releases, and two examples.
-- **Next: 0.2.0.** The plan is in `docs/NEXT_RELEASE.md`, local only.
+**Current status (2026-11-01):**
+- **Released:** Xenia 0.1.0 and 0.1.1 (2026-10-25), 0.1.2 (2026-10-29), on
+  Hex, from the public repository `github.com/uzaydurdu/xenia`.
+- **0.2.0:** complete (CHANGELOG dated 2026-11-01), being published by the
+  author. The plan was `docs/NEXT_RELEASE.md`, local only.
 
 Every milestone through M11 is complete, M8 is decided (a JS island, §2),
 and `examples/` holds a runnable examples app (§13). The paragraphs below

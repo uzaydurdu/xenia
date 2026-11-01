@@ -95,7 +95,7 @@ Xenia needs Elixir 1.15 or later, Phoenix 1.8 and LiveView 1.2.
 
 ```bash
 mix phx.new my_app && cd my_app
-# add {:xenia, "~> 0.1.0"} to the deps in mix.exs
+# add {:xenia, "~> 0.2.0"} to the deps in mix.exs
 mix deps.get
 mix xenia.install
 mix phx.server
@@ -115,7 +115,7 @@ theme, layout, routes and home page alone.
 
 A Chart.js chart in an existing Phoenix 1.8 app.
 
-**1. Add Xenia** to `mix.exs` (`{:xenia, "~> 0.1.0"}`), run `mix deps.get`, and
+**1. Add Xenia** to `mix.exs` (`{:xenia, "~> 0.2.0"}`), run `mix deps.get`, and
 install the library: `npm install chart.js --prefix assets`.
 
 **2. Write the adapter**, `assets/js/chart_adapter.js`:

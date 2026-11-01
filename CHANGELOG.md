@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0 (unreleased)
+## 0.2.0 (2026-11-01)
 
 - **Large data, measured and documented:** a prop is sent again whole when
   it changes, and Xenia sends all of a component's props as one attribute.

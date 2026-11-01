@@ -32,20 +32,29 @@ async function open(path) {
   page.on("pageerror", (e) => problems.push(e.message))
   page.on("console", (m) => { if (isBrowserError(m)) problems.push(m.text()) })
   page.on("worker", (w) => workers.push(new URL(w.url()).pathname))
-  page.on("response", async (res) => {
+  // Reading a script's body takes time (Monaco's is several MB): each read
+  // is kept, so a test can wait for them before it counts.
+  const pending = new Set()
+  page.on("response", (res) => {
     if (res.request().resourceType() !== "script") return
-    const body = await res.text().catch(() => "")
-    scripts.push({ path: new URL(res.url()).pathname, bytes: body.length, monaco: body.includes(MONACO) })
+    const read = res.text().catch(() => "").then((body) => {
+      scripts.push({ path: new URL(res.url()).pathname, bytes: body.length, monaco: body.includes(MONACO) })
+    })
+    pending.add(read)
+    read.finally(() => pending.delete(read))
   })
+  const reads = () => Promise.all([...pending])
+
   await page.goto(BASE + path)
   await page.waitForSelector("[data-phx-main].phx-connected")
-  return { page, problems, scripts, workers }
+  return { page, problems, scripts, workers, reads }
 }
 
 test("a page without Monaco doesn't download it", async () => {
-  const { page, problems, scripts } = await open("/chart")
+  const { page, problems, scripts, reads } = await open("/chart")
   await page.waitForSelector("#sales canvas")
   await page.waitForTimeout(1000)
+  await reads()
 
   assert.ok(scripts.some((s) => s.path.endsWith("/assets/js/app.js")), "app.js loaded")
   assert.deepEqual(scripts.filter((s) => s.monaco).map((s) => s.path), [], "no Monaco")
@@ -54,9 +63,10 @@ test("a page without Monaco doesn't download it", async () => {
 })
 
 test("the Monaco page downloads Monaco, and its workers start", async () => {
-  const { page, problems, scripts, workers } = await open("/adapters/monaco")
+  const { page, problems, scripts, workers, reads } = await open("/adapters/monaco")
   await page.waitForSelector("#editor .monaco-editor .view-lines")
-  await page.waitForTimeout(1500)
+  await page.waitForTimeout(1500) // for the workers to start
+  await reads()
 
   const monaco = scripts.filter((s) => s.monaco)
   assert.equal(monaco.length, 1, "one chunk with Monaco")

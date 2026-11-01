@@ -28,14 +28,24 @@ async function open(path) {
   const monaco = [] // the scripts with Monaco in them, as they arrive
   page.on("pageerror", (e) => problems.push(e.message))
   page.on("console", (m) => { if (isBrowserError(m)) problems.push(m.text()) })
-  page.on("response", async (res) => {
+
+  // Reading a script's body takes time (Monaco's is several MB), and can
+  // finish after the editor is on screen. Each read is kept, so a test can
+  // wait for them before it counts.
+  const pending = new Set()
+  page.on("response", (res) => {
     if (res.request().resourceType() !== "script") return
-    const body = await res.text().catch(() => "")
-    if (body.includes(MONACO)) monaco.push(new URL(res.url()).pathname)
+    const read = res.text().catch(() => "").then((body) => {
+      if (body.includes(MONACO)) monaco.push(new URL(res.url()).pathname)
+    })
+    pending.add(read)
+    read.finally(() => pending.delete(read))
   })
+  const reads = () => Promise.all([...pending])
+
   await page.goto(BASE + path)
   await page.waitForSelector("[data-phx-main].phx-connected")
-  return { page, problems, monaco }
+  return { page, problems, monaco, reads }
 }
 
 // Monaco renders spaces as non-breaking spaces; compare plain text.
@@ -43,8 +53,9 @@ const editorText = async (page) =>
   (await page.locator("#later .view-lines").innerText()).replace(/\u00a0/g, " ")
 
 test("a lazy editor below the fold isn't downloaded or started until you scroll to it", async () => {
-  const { page, problems, monaco } = await open("/lazy")
+  const { page, problems, monaco, reads } = await open("/lazy")
   await page.waitForTimeout(1500)
+  await reads()
 
   assert.equal(await page.locator("#later .monaco-editor").count(), 0, "not started")
   assert.ok(await page.locator("#later [data-xenia-loading]").isVisible(), "the placeholder shows")
@@ -52,6 +63,7 @@ test("a lazy editor below the fold isn't downloaded or started until you scroll 
 
   await page.locator("#later").scrollIntoViewIfNeeded()
   await page.waitForSelector("#later .monaco-editor .view-lines")
+  await reads() // the editor runs, so Monaco's response has arrived
   assert.equal(monaco.length, 1, "Monaco downloaded once it was needed")
   assert.match(await editorText(page), /An editor that waited for you/, "the server's value")
   assert.deepEqual(problems, [])
@@ -80,11 +92,12 @@ test("a command sent before the island is visible arrives once it starts", async
 })
 
 test("leaving before the island is visible: nothing downloaded, no errors", async () => {
-  const { page, problems, monaco } = await open("/lazy")
+  const { page, problems, monaco, reads } = await open("/lazy")
   await page.click("#sidebar a[href='/chart']")
   await page.waitForURL(BASE + "/chart")
   await page.waitForSelector("#sales canvas")
   await page.waitForTimeout(1000)
+  await reads()
 
   assert.deepEqual(monaco, [])
   assert.deepEqual(problems, [])

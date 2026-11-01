@@ -6,7 +6,7 @@ defmodule Mix.Tasks.Xenia.Install do
 
       $ mix phx.new my_app
       $ cd my_app
-      # add {:xenia, "~> 0.1.0"} to mix.exs, then:
+      # add {:xenia, "~> 0.2.0"} to mix.exs, then:
       $ mix deps.get
       $ mix xenia.install
 
