@@ -8,117 +8,51 @@
   Xenia is the small, simple adapter between the two.
 </p>
 
-Xenia brings JavaScript libraries (charts, code editors, maps, terminals)
-into Phoenix LiveView, and lets your folders define your pages.
+Xenia puts any JavaScript library (a chart, a code editor, a map, a
+terminal) into Phoenix LiveView as a tag in your templates:
 
-## Contents
-
-- [What you get](#what-you-get)
-- [Why Xenia](#why-xenia)
-- [When a plain hook is enough](#when-a-plain-hook-is-enough)
-- [How it works](#how-it-works)
-- [Start a new app](#start-a-new-app)
-- [Quickstart](#quickstart)
-- [Writing an adapter](#writing-an-adapter)
-- [Official adapters](#official-adapters)
-- [More features](#more-features): [forms](#forms), [web components](#web-components), [files](#files), [app-wide values](#app-wide-values), [keyboard shortcuts](#keyboard-shortcuts), [loading and errors](#loading-and-errors), [testing](#testing), [lazy islands](#lazy-islands), [large data](#large-data), [adapters next to the page](#adapters-next-to-the-page), [TypeScript](#typescript)
-- [Pages from folders](#pages-from-folders)
-- [Generators](#generators)
-- [Configuration and troubleshooting](#configuration-and-troubleshooting)
-- [Examples and guides](#examples-and-guides)
-- [Developing Xenia](#developing-xenia)
-- [Contact](#contact) · [License](#license)
-
-## What you get
-
-**JavaScript in LiveView**
-- Any npm library with one small adapter: how it starts, updates and stops.
-- 16 official adapters: Monaco, Tiptap, Chart.js, D3, Tabulator, FullCalendar,
-  Leaflet, xterm.js, flatpickr, Tom Select, Uppy, wavesurfer.js and more.
-- Props from your assigns, events to `handle_event`, replies for search boxes,
-  and commands from the server to one component.
-- Form fields, app-wide values (theme, locale), keyboard shortcuts, and loading
-  and error states, without adapter code.
-
-**Pages from folders** (optional)
-- File-based routing: `page.ex` makes a route, `[id]` is a parameter.
-- Nested layouts, parts that stay alive between pages, and pages that share one
-  LiveView.
-- Page titles, social-card tags and a sitemap.
-
-**Everyday work**
-- `mix xenia.install` sets up a new Phoenix app; generators write pages,
-  layouts and adapters.
-- A runnable examples app, and four guides. MIT licensed.
-
-## Why Xenia
-
-*Xenia* (ξενία) is the ancient Greek bond between a host and a guest. Phoenix
-is the host: it renders the pages, owns the state and stays in charge. A
-JavaScript library is the guest: it gets a place of its own on the page and
-does its work there. Xenia is the agreement between them, written once.
-
-The JavaScript community has an excellent library for almost anything a
-browser can do. With Xenia you use them without hand-writing a LiveView hook
-for each one: Monaco took a 58-line hook by hand, and is 21 lines as an adapter.
-
-## When a plain hook is enough
-
-You don't need Xenia for every piece of JavaScript. A plain `phx-hook` is fine
-when the library is simple to wire: a web component that only forwards an
-event, or a widget the server never changes after it starts.
-
-Xenia pays off when:
-- the server keeps updating the library;
-- it loads slowly;
-- it's a form field;
-- the server sends it commands;
-- you have several libraries to wire the same way.
-
-## How it works
-
-```
-your LiveView (Elixir)              Xenia                  your adapter (JavaScript)
-<.chart data={@sales}      ──►  sends changed props  ──►  props: { data(chart, data) }
-        on_click="clicked" />
-def handle_event("clicked") ◄──  delivers the event   ◄──  ctx.emit("click", payload)
-Xenia.push_to(socket,      ──►  routes it to one     ──►  commands: { highlight(chart, args) }
-  "sales", "highlight")         component
+```heex
+<.chart id="sales" data={@sales} on_click="bar_clicked" />
 ```
 
-Xenia also handles cleanup on navigation, libraries that load slowly, and
-events sent just before the user leaves a page.
+Your assigns reach the library, its events reach `handle_event`, and the
+server can send it commands. No hand-written hooks. Sixteen popular
+libraries have ready-made adapters, and any other takes a short one.
 
-## Start a new app
+[Install](#install) · [Your first island](#your-first-island) ·
+[What else it does](#what-else-it-does) · [Official adapters](#official-adapters) ·
+[Pages from folders](#pages-from-folders) · [Guides](#guides)
 
-Xenia needs Elixir 1.15 or later, Phoenix 1.8 and LiveView 1.2.
+## Install
+
+Xenia needs Elixir 1.15 or later, Phoenix 1.8 and LiveView 1.2. Add it to
+the deps in `mix.exs`:
+
+```elixir
+{:xenia, "~> 0.2.0"}
+```
+
+Then:
 
 ```bash
-mix phx.new my_app && cd my_app
-# add {:xenia, "~> 0.2.0"} to the deps in mix.exs
 mix deps.get
-mix xenia.install
-mix phx.server
+mix xenia.install                  # in a new app (mix phx.new)
+mix xenia.install --islands-only   # or in an existing app
 ```
 
-`mix xenia.install` adds a light and dark theme, a layout and home page in the
-app folder, Xenia's hooks, and flash messages that stack and close by
-themselves. It prints each change, and leaves alone any file you've already
-changed.
+The installer adds Xenia's hooks to `app.js` (next to the ones you have),
+imports its components, and adds it to the formatter. In a new app it also
+adds a light and dark theme, a layout and home page, and flash messages
+that close by themselves; `--islands-only` leaves your theme, layout and
+routes alone. It prints every change.
 
-**In an existing app**, run `mix xenia.install --islands-only` instead. It
-adds only Xenia's hooks to `app.js` (next to the hooks you already have),
-`import Xenia.Component`, and `:xenia` in the formatter, and leaves your
-theme, layout, routes and home page alone.
+## Your first island
 
-## Quickstart
+A Chart.js chart in three steps. Install the library first:
+`npm install chart.js --prefix assets`.
 
-A Chart.js chart in an existing Phoenix 1.8 app.
-
-**1. Add Xenia** to `mix.exs` (`{:xenia, "~> 0.2.0"}`), run `mix deps.get`, and
-install the library: `npm install chart.js --prefix assets`.
-
-**2. Write the adapter**, `assets/js/chart_adapter.js`:
+**1. Write the adapter**, `assets/js/chart.js`: how the library starts,
+updates and stops.
 
 ```js
 import Chart from "chart.js/auto"
@@ -127,109 +61,119 @@ export const chart = {
   mount(el, props, ctx) {
     const canvas = el.appendChild(document.createElement("canvas"))
     return new Chart(canvas, {
-      type: props.type,
+      type: "bar",
       data: props.data,
       options: {
-        onClick: (_e, points, chart) =>
-          points[0] && ctx.emit("click", { label: chart.data.labels[points[0].index] }),
+        onClick: (_event, [bar], chart) =>
+          bar && ctx.emit("click", { label: chart.data.labels[bar.index] }),
       },
     })
   },
   destroy(chart) { chart.destroy() },
   props: {
     data(chart, data) { chart.data = data; chart.update() },
-    type(_chart, _type, ctx) { ctx.remount() }, // Chart.js can't change type in place
   },
   events: { click: {} },
 }
 ```
 
-**3. Register it** in `assets/js/app.js`:
+**2. Register it** in `assets/js/app.js`, in the `createHooks({})` the
+installer added:
 
 ```js
-import {createHooks} from "xenia"
-import {chart} from "./chart_adapter"
+import {chart} from "./chart"
 
 // in the LiveSocket options:
 hooks: {...colocatedHooks, ...createHooks({Chart: chart})},
 ```
 
-**4. Declare the tag**, `lib/my_app_web/components/charts.ex`, then add
-`import MyAppWeb.Charts` to `html_helpers` in `lib/my_app_web.ex`, and `:xenia`
-to `import_deps` in `.formatter.exs`:
+**3. Use it in a LiveView.** `component` declares the tag, so HEEx checks
+its attributes when it compiles:
 
 ```elixir
-defmodule MyAppWeb.Charts do
+defmodule MyAppWeb.SalesLive do
+  use MyAppWeb, :live_view
   use Xenia.Components
 
   component :chart, adapter: "Chart" do
-    prop :type, :string, required: true
     prop :data, :map, required: true
     event :click
+  end
+
+  def mount(_params, _session, socket) do
+    sales = %{labels: ~w(Jan Feb Mar), datasets: [%{label: "Sales", data: [12, 19, 7]}]}
+    {:ok, assign(socket, sales: sales, clicked: nil)}
+  end
+
+  def handle_event("bar_clicked", %{"label" => label}, socket),
+    do: {:noreply, assign(socket, clicked: label)}
+
+  def render(assigns) do
+    ~H"""
+    <.chart id="sales" data={@sales} on_click="bar_clicked" style="height: 300px" />
+    <p :if={@clicked}>You clicked {@clicked}.</p>
+    """
   end
 end
 ```
 
-**5. Use it in a LiveView** (`live "/sales", SalesLive` in your router):
+Add `live "/sales", SalesLive` to your router and open `/sales`. Clicking a
+bar runs `handle_event`, and a new `@sales` updates the same chart. Every
+npm library works this way.
 
-```elixir
-def mount(_params, _session, socket), do: {:ok, assign(socket, sales: sales(), clicked: nil)}
+## What else it does
 
-def render(assigns) do
-  ~H"""
-  <.chart id="sales" type="bar" data={@sales} on_click="bar_clicked" style="height: 300px" />
-  <p :if={@clicked}>You clicked {@clicked}</p>
-  """
-end
+Each row is a page in the [examples app][examples], with its code and a
+short README.
 
-def handle_event("bar_clicked", %{"label" => label}, socket),
-  do: {:noreply, assign(socket, clicked: label)}
+| You want | You write | Example |
+|---|---|---|
+| A ready-made adapter | `createChartjs({load: () => import("chart.js/auto")})` | [Chart.js][ex-chartjs] |
+| The server to tell one island to act | `Xenia.push_to(socket, "sales", "highlight", %{index: 2})` | [Chart][ex-chart] |
+| An answer from the server, such as search results | `await ctx.call("search", {query})` | [Tag picker][ex-tom-select] |
+| A JavaScript component as a form field | `field={@form[:code]}` | [A form with editors][ex-forms] |
+| Islands that follow light and dark mode | `consumes: ["theme"]` | [Theme][ex-theme] |
+| Something to show while it loads, or if it breaks | `<:loading>` and `<:error>` | [Loading and errors][ex-loading] |
+| Start it only when it scrolls into view | `lazy="visible"` | [Lazy islands][ex-lazy] |
+| Keyboard shortcuts while it has focus | `shortcuts={%{"mod+s" => "save"}}` | [Code editor][ex-monaco] |
+| Read-only while the connection is down | `consumes: ["connection"]` | [Connection][ex-connection] |
+| Thousands of data points | send what changed, as commands | [Large data][ex-large-data] |
+| Files from a component, through a LiveView upload | `ctx.upload("photos", files)` | [File uploads][ex-uppy] |
+| A web component | nothing: props are set as properties | [Rating][ex-rating] |
+| The adapter inside the page that uses it | `adapter={colocated(".Chart")}` | [Island in a page][ex-colocated] |
+| TypeScript | `Adapter<Chart, Props, Events>` | [A typed island][ex-typed] |
+| Tests for a page with an island | `import Xenia.Test` | [islands_test.exs][ex-tests] |
+| Pages and layouts from folders | `page.ex`, `layout.ex`, `[id]/` | [File-based routing][ex-routing] |
 
-defp sales, do: %{labels: ~w(Jan Feb Mar), datasets: [%{label: "Sales", data: [12, 19, 7]}]}
+To run them all:
+
+```bash
+git clone https://github.com/uzaydurdu/xenia && cd xenia/examples
+mix setup && mix phx.server   # then open localhost:4000
 ```
 
-Clicking a bar reaches `handle_event`, a new `@sales` updates the same chart,
-and HEEx checks the tag's attributes at compile time. Any npm library works the
-same way.
-
-## Writing an adapter
-
-```js
-{
-  mount(el, props, ctx)                        // create the library in `el`; return it (or a Promise)
-  destroy(instance, ctx)                       // clean up, synchronously
-  props:    { name(instance, value, ctx) {} }, // apply one changed prop
-  events:   { name: { debounce: ms } },        // events it can send
-  commands: { name(instance, args, ctx) {} },  // things the server can ask it to do
-  consumes: ["theme"],                         // app-wide values, received as props
-}
-```
-
-Only `mount` and `destroy` are required. A prop's handler runs only when its
-value changed; a prop without one is assigned to the instance. `el` is yours;
-the container around it belongs to LiveView.
-
-| `ctx` | |
-|---|---|
-| `emit(name, payload)` | send an event; the page names its LiveView event (`on_<name>`) |
-| `call(name, payload)` | send an event, get a Promise of the server's `{:reply, map, socket}` |
-| `remount()` | rebuild the instance, for settings a library can't change in place |
-| `isAlive()` | false once destroyed; check it after your own async work |
-| `signal` | an `AbortSignal` aborted at destroy: pass it to `fetch` and to listeners on `document` |
-| `setFormValue(value)` | write the component's form value ([forms](#forms)) |
-| `upload(name, files)` | send files through a LiveView upload ([files](#files)) |
-| `id`, `hook` | the component's id; the raw LiveView hook |
-
-**Commands** reach one component: `Xenia.push_to(socket, "sales", "highlight", %{index: 2})`.
-Without a declared tag, render the container yourself:
-`<.xenia id="sales" adapter="Chart" props={%{data: @sales}} events={%{click: "bar_clicked"}} />`.
-
-The full contract is in [What Xenia owns, what your adapter owns](guides/ownership-boundary.md).
+[examples]: https://github.com/uzaydurdu/xenia/tree/main/examples
+[ex-chartjs]: https://github.com/uzaydurdu/xenia/tree/main/examples/lib/xenia_examples_web/app/adapters/chartjs
+[ex-chart]: https://github.com/uzaydurdu/xenia/tree/main/examples/lib/xenia_examples_web/app/chart
+[ex-tom-select]: https://github.com/uzaydurdu/xenia/tree/main/examples/lib/xenia_examples_web/app/adapters/tom-select
+[ex-forms]: https://github.com/uzaydurdu/xenia/tree/main/examples/lib/xenia_examples_web/app/forms
+[ex-theme]: https://github.com/uzaydurdu/xenia/tree/main/examples/lib/xenia_examples_web/app/theme
+[ex-loading]: https://github.com/uzaydurdu/xenia/tree/main/examples/lib/xenia_examples_web/app/loading
+[ex-lazy]: https://github.com/uzaydurdu/xenia/tree/main/examples/lib/xenia_examples_web/app/lazy
+[ex-monaco]: https://github.com/uzaydurdu/xenia/tree/main/examples/lib/xenia_examples_web/app/adapters/monaco
+[ex-connection]: https://github.com/uzaydurdu/xenia/tree/main/examples/lib/xenia_examples_web/app/connection
+[ex-large-data]: https://github.com/uzaydurdu/xenia/tree/main/examples/lib/xenia_examples_web/app/large-data
+[ex-uppy]: https://github.com/uzaydurdu/xenia/tree/main/examples/lib/xenia_examples_web/app/adapters/uppy
+[ex-rating]: https://github.com/uzaydurdu/xenia/tree/main/examples/lib/xenia_examples_web/app/rating
+[ex-colocated]: https://github.com/uzaydurdu/xenia/tree/main/examples/lib/xenia_examples_web/app/colocated
+[ex-typed]: https://github.com/uzaydurdu/xenia/tree/main/examples/lib/xenia_examples_web/app/typed
+[ex-tests]: https://github.com/uzaydurdu/xenia/blob/main/examples/test/xenia_examples_web/islands_test.exs
+[ex-routing]: https://github.com/uzaydurdu/xenia/tree/main/examples/lib/xenia_examples_web/app/routing
 
 ## Official adapters
 
-Install the library in your app and pass it in. Xenia never adds a JavaScript
-dependency you don't use.
+Install the library in your app and pass it in. Xenia never adds a
+JavaScript dependency you don't use.
 
 | Library | Import from | Tag |
 |---|---|---|
@@ -261,115 +205,52 @@ const chartjs = createChartjs({load: () => import("chart.js/auto")})
 
 Configure one with options (`createChartjs({load, plugins, options})`), and
 extend it by spreading: `{...chartjs, commands: {...chartjs.commands, mine() {}}}`.
-Each tag module (`Xenia.Adapters.Tiptap`, ...) lists its npm packages, `load`
-line, CSS, props, events and commands. Monaco needs a few build steps for its
-workers: see `Xenia.Adapters.Monaco`.
+Each tag module (`Xenia.Adapters.Tiptap`, ...) lists its npm packages,
+`load` line, CSS, props, events and commands. Monaco needs a few build
+steps for its workers: see `Xenia.Adapters.Monaco`.
 
-## More features
-
-### Forms
-
-A component with `field={@form[:code]}` is a form field: submitted with the
-form, part of `phx-change`, restored after a reconnect, with errors like
-`<.input>`. The official Monaco, Tiptap, flatpickr, Tom Select and Shoelace
-rating adapters handle it; your own adapter calls `ctx.setFormValue(value)`.
-A list (Tom Select's `multiple`, a flatpickr range) is submitted as a list,
-so an Ecto `{:array, _}` field casts it directly.
-
-### Web components
-
-A custom element needs no prop handlers: each prop is set as a property.
-
-### Files
-
-`ctx.upload("recording", [file])` sends files a component produced through a
-LiveView upload (`allow_upload` and `<.live_file_input>` on the page).
-
-### App-wide values
-
-Publish a value once, and every adapter with `consumes: ["theme"]` gets it as a
-prop: from the browser with `setProvider("theme", value)`, or from the server
-with `<Xenia.Provider.provider name="locale" value={@locale} />`.
-`consumes: ["connection"]` gives an island `"connected"` or `"disconnected"`,
-from its own LiveView: an editor can turn read-only while its edits can't
-reach the server.
-
-### Keyboard shortcuts
-
-`shortcuts={%{"mod+s" => "save"}}` sends a LiveView event while the component
-has focus. `mod` is Cmd on a Mac and Ctrl elsewhere; browser shortcuts are
-refused.
-
-### Loading and errors
-
-```heex
-<.monaco id="editor" value={@code} on_crash="editor_crashed">
-  <:loading>Loading the editor…</:loading>
-  <:error>It broke. <button type="button" data-xenia-retry>Try again</button></:error>
-</.monaco>
-```
-
-### Testing
-
-`import Xenia.Test` in a LiveView test: `xenia_props/2` reads an island's
-props, `render_xenia_event/4` sends its events, `assert_xenia_command/5`
-checks the server's commands, and `xenia_call/5` returns a call's reply.
-See [Wrapping a library](guides/wrapping-a-library.md#testing-a-page-with-an-island).
-
-### Lazy islands
-
-`lazy="visible"` starts an island only when it scrolls near the screen.
-With [code splitting](#code-splitting), its library downloads only then too.
-Commands sent before that wait for it, and it starts with the latest props.
-
-```heex
-<.monaco id="editor" value={@code} lazy="visible">
-  <:loading>The editor starts when you scroll here.</:loading>
-</.monaco>
-```
-
-### Large data
-
-A prop is sent again whole whenever it changes. For data that grows a
-little at a time, send the changes as commands: a 10,000-point chart's new
-point is 99 bytes as a command, and 109 KB as a prop. See
-[Wrapping a library](guides/wrapping-a-library.md#large-data-send-what-changed-as-commands).
-
-### Adapters next to the page
-
-An adapter only one page uses can live in that page's module, in a LiveView
-colocated hook (`adapter={colocated(".Chart")}`), with no change to `app.js`.
-See [Wrapping a library](guides/wrapping-a-library.md).
-
-### TypeScript
-
-Xenia ships types. An adapter for any library, in a `.ts` file (Phoenix's
-esbuild compiles it as it is) or in JavaScript with a comment, gets a typed
-`ctx`, props, events and commands; the library's own types describe its
-instance:
+## The adapter
 
 ```js
-/** @type {import("xenia").Adapter<Chart, {labels: string[]}, {click: {label: string}}>} */
+{
+  mount(el, props, ctx)                        // create the library in `el`; return it (or a Promise)
+  destroy(instance, ctx)                       // clean up, synchronously
+  props:    { name(instance, value, ctx) {} }, // apply one changed prop
+  events:   { name: { debounce: ms } },        // events it can send
+  commands: { name(instance, args, ctx) {} },  // things the server can ask it to do
+  consumes: ["theme"],                         // app-wide values, received as props
+}
 ```
 
-The official adapters are typed too. See
-[Wrapping a library](guides/wrapping-a-library.md#typed-adapters) for the
-`tsconfig.json` setup.
+Only `mount` and `destroy` are required. A prop's handler runs only when
+its value changed; a prop without one is assigned to the instance. `el` is
+yours; the container around it belongs to LiveView.
+
+| `ctx` | |
+|---|---|
+| `emit(name, payload)` | send an event; the page names its LiveView event (`on_<name>`) |
+| `call(name, payload)` | send an event, get a Promise of the server's `{:reply, map, socket}` |
+| `remount()` | rebuild the instance, for settings a library can't change in place |
+| `isAlive()` | false once destroyed; check it after your own async work |
+| `signal` | an `AbortSignal` aborted at destroy: pass it to `fetch` and to listeners on `document` |
+| `setFormValue(value)` | write the component's form value |
+| `upload(name, files)` | send files through a LiveView upload |
+| `id`, `hook` | the component's id; the raw LiveView hook |
+
+**App-wide values** reach every adapter that `consumes` them.
+`mix xenia.install` publishes Phoenix's theme toggle as `"theme"`. Publish
+your own from the browser with `setProvider("locale", value)`, or from the
+server with `<Xenia.Provider.provider name="locale" value={@locale} />`.
+
+Without a declared tag, render the container yourself:
+`<.xenia id="sales" adapter="Chart" props={%{data: @sales}} events={%{click: "bar_clicked"}} />`.
+The full contract is in
+[What Xenia owns, what your adapter owns](guides/ownership-boundary.md).
 
 ## Pages from folders
 
 Optional: your folders define your routes, like the Next.js App Router.
-JavaScript islands work in any LiveView without it.
-
-```elixir
-# lib/my_app_web/router.ex
-import Xenia.Routes
-
-# inside your browser scope:
-live_session :app do
-  xenia_routes "lib/my_app_web/app"
-end
-```
+Islands work in any LiveView without it.
 
 ```
 lib/my_app_web/app/
@@ -383,17 +264,13 @@ lib/my_app_web/app/
   _components/card.ex         never a route
 ```
 
-- **`page.ex`** is a LiveView with `use Xenia.Page`; its folder is its URL.
-- **`[slug]`** is a parameter, **`[...path]`** the rest of the URL, **`(group)`**
-  stays out of the URL, **`_private`** is never a route.
-- **`layout.ex`** frames the pages below it; its `on_mount:` protects them.
-- **`persistent.ex`** keeps its state while users move between those pages.
-- **`metadata/1`** sets titles and social tags; `Xenia.Sitemap` serves a sitemap.
+One line in the router, inside a `live_session`, makes the routes:
+`xenia_routes "lib/my_app_web/app"` (after `import Xenia.Routes`). They're
+ordinary `live` routes, so `mix phx.routes` and `~p` work as usual.
+`metadata/1` sets page titles and social tags, and `Xenia.Sitemap` serves
+a sitemap. The guide: [Building pages from folders](guides/app-folder.md).
 
-It compiles to ordinary `live` routes: `mix phx.routes` and `~p` work as usual.
-The guide: [Building pages from folders](guides/app-folder.md).
-
-## Generators
+Generators write the files:
 
 ```
 mix xenia.gen.component chart data:map --events click   # an adapter and its tag
@@ -401,15 +278,29 @@ mix xenia.gen.page reports/sales                        # a page.ex
 mix xenia.gen.layout "(auth)" --persistent              # a layout.ex and persistent.ex
 ```
 
-## Configuration and troubleshooting
+## Why Xenia
 
-### Code splitting
+*Xenia* (ξενία) is the ancient Greek bond between a host and a guest.
+Phoenix is the host: it renders the pages, owns the state and stays in
+charge. A JavaScript library is the guest: it gets a place of its own on
+the page and does its work there. Xenia is the agreement between them,
+written once: Monaco took a 58-line hook by hand, and is 21 lines as an
+adapter.
+
+**When a plain hook is enough.** You don't need Xenia for every piece of
+JavaScript. A plain `phx-hook` is fine for a web component that only
+forwards an event, or a widget the server never changes after it starts.
+Xenia pays off when the server keeps updating the library, it loads
+slowly, it's a form field, the server sends it commands, or you have
+several libraries to wire the same way.
+
+## Code splitting
 
 By default, esbuild puts every library into `app.js`, so every page
 downloads all of them. With code splitting, each `load: () => import(...)`
-becomes its own file, which a page fetches only when one of its islands
-needs it. In the examples app, a page now downloads 0.59 MB of JavaScript
-up front instead of 7.9 MB (production build).
+becomes its own file, fetched only when an island needs it. In the
+examples app, a page downloads 0.59 MB of JavaScript up front instead of
+7.9 MB (production build).
 
 Add this to your esbuild profile's `args` in `config/config.exs`:
 
@@ -423,52 +314,41 @@ and load `app.js` as a module in `root.html.heex`:
 <script defer phx-track-static type="module" src={~p"/assets/js/app.js"}></script>
 ```
 
-A library that an adapter imports at the top of a file
+A library an adapter imports at the top of a file
 (`import Chart from "chart.js/auto"`) stays in the first download. Using
 Monaco? Its workers need a profile of their own: see `Xenia.Adapters.Monaco`.
 
-### Other settings
+## Troubleshooting
 
-- **Custom binding prefix:** if your `LiveSocket` uses one, set the same:
-  `config :xenia, binding_prefix: "pop-"`.
-- **"Could not resolve "xenia"":** run `mix deps.get`. For a path dependency,
-  add the folder that contains the `xenia` checkout to `NODE_PATH` in your
-  esbuild config.
+- **"Could not resolve "xenia"":** run `mix deps.get`. For a path
+  dependency, add the folder that contains the `xenia` checkout to
+  `NODE_PATH` in your esbuild config.
 - **Changes to a path dependency don't show up:** `mix deps.clean xenia --build`,
   then restart `mix phx.server`.
+- **A custom binding prefix** in your `LiveSocket`: set the same one,
+  `config :xenia, binding_prefix: "pop-"`.
 - **Surface UI:** islands work in `~F` templates. For adapters next to a
   component, use its `.hooks.js` file: see
   [In a Surface app](guides/wrapping-a-library.md#in-a-surface-app).
 
-## Examples and guides
+## Guides
 
-- [Examples](https://github.com/uzaydurdu/xenia/tree/main/examples): a runnable
-  Phoenix app, one page per feature, each with a short README.
-- [Wrapping any JavaScript library](guides/wrapping-a-library.md)
+- [Wrapping any JavaScript library](guides/wrapping-a-library.md): an
+  adapter step by step, then forms, testing, TypeScript and large data
 - [What Xenia owns, what your adapter owns](guides/ownership-boundary.md)
 - [Building pages from folders](guides/app-folder.md)
 - [Icons, notifications and languages](guides/icons-notifications-languages.md)
+- [The examples app](https://github.com/uzaydurdu/xenia/tree/main/examples)
 
-## Developing Xenia
-
-```
-lib/xenia/core/        the JS-island boundary: <.xenia>, the DSL, providers, shortcuts
-lib/xenia/app/         pages from folders: routes, pages, layouts, metadata, sitemap
-lib/xenia/adapters/    the official adapters' tags
-lib/mix/               mix xenia.install, xenia.routes and the generators
-assets/                the JavaScript: core/ and adapters/, prebuilt into priv/static
-test/                  the same layout, plus test/js
-examples/              the examples app
-```
+## Contributing
 
 ```bash
 mix setup   # dependencies, esbuild and the bundles
 mix check   # format, compile, bundles, tests, the Hex package and the docs
 ```
 
-Commit the rebuilt `priv/static` with your change; CI checks it matches the
-sources. [CONTRIBUTING.md](https://github.com/uzaydurdu/xenia/blob/main/CONTRIBUTING.md) covers the browser tests and the
-rules for changes.
+[CONTRIBUTING.md](https://github.com/uzaydurdu/xenia/blob/main/CONTRIBUTING.md)
+covers where things are, the browser tests and the rules for changes.
 
 ## Contact
 

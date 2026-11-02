@@ -49,6 +49,10 @@ New to Xenia? Open these four, in order. Each takes a few minutes:
 | **Island in a page** | An adapter that lives inside the page that uses it. | [`app/colocated`](lib/xenia_examples_web/app/colocated) |
 | **Two editors** | Two islands of one kind on a page: each reports to its own event, and a command reaches only one. | [`app/two-editors`](lib/xenia_examples_web/app/two-editors) |
 | **Tabs** | Two pages that share one LiveView and its state. | [`app/tabs`](lib/xenia_examples_web/app/tabs) |
+| **When the connection drops** | A code editor that turns read-only while the page is disconnected, with `consumes: ["connection"]`. | [`app/connection`](lib/xenia_examples_web/app/connection) |
+| **Listeners outside the island** | An island that listens for keys on the whole page, and leaves nothing behind when it goes (`ctx.signal`). | [`app/listeners`](lib/xenia_examples_web/app/listeners) |
+| **A typed island** | A Chart.js doughnut whose adapter is written in TypeScript: props, an event and a command, all typed. | [`app/typed`](lib/xenia_examples_web/app/typed) |
+| **Large data** | One series sent two ways, as a prop and as commands, with what each one costs, up to 10,000 points. | [`app/large-data`](lib/xenia_examples_web/app/large-data) |
 
 **Pages from folders.** Routes and layouts come from folders, not from a
 router file.
@@ -119,10 +123,11 @@ folder.
 
 ## Use Xenia in your own app
 
-First add Xenia to `mix.exs`: `{:xenia, "~> 0.1.0"}`. (This app uses the
+First add Xenia to `mix.exs`: `{:xenia, "~> 0.2.0"}`. (This app uses the
 code in this repository instead: `{:xenia, path: ".."}`.) In a new Phoenix
 app, run `mix xenia.install` next: it adds the theme, a layout, a home page
-in the app folder, and the hooks.
+in the app folder, and the hooks. In an existing app,
+`mix xenia.install --islands-only` adds only the hooks.
 
 **A library Xenia has an official adapter for** (Monaco, Tiptap, Chart.js,
 Tabulator, ...):
@@ -169,7 +174,7 @@ every one of them.
 `lib/my_app_web/app/reports/sales/page.ex`, and `/reports/sales` works
 right away.
 
-The [README of Xenia](../README.md) walks through all of this in detail.
+[Xenia's README](../README.md) has the whole setup, and its guides go further.
 
 ## Run the browser tests
 

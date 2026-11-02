@@ -24,6 +24,22 @@ mix check   # what CI runs
   `test/types` (`npm run types`). A fixture's `@ts-expect-error` marks a
   mistake the types must catch.
 
+Commit the rebuilt `priv/static` with your change; CI checks it matches
+the sources.
+
+Where things are:
+
+```
+lib/xenia/core/        the JS-island boundary: <.xenia>, the DSL, providers, shortcuts
+lib/xenia/app/         pages from folders: routes, pages, layouts, metadata, sitemap
+lib/xenia/adapters/    the official adapters' tags
+lib/mix/               mix xenia.install, xenia.routes and the generators
+assets/                the JavaScript: core/ and adapters/, prebuilt into priv/static
+priv/types/            the TypeScript declarations
+test/                  the same layout, plus test/js and test/types
+examples/              the examples app
+```
+
 ## Browser tests
 
 The unit tests use fake libraries. The examples app's browser tests
