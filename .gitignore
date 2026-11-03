@@ -38,3 +38,6 @@ xenia-*.tar
 /docs/NEXT_RELEASE.md
 /docs/SURFACE_PLAN.md
 /docs/BRIDGES_AND_CONTRACTS.md
+
+# macOS folder metadata
+.DS_Store

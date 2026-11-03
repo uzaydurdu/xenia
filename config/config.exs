@@ -22,6 +22,7 @@ if config_env() == :dev do
         xenia-tom-select=assets/tom-select.js
         xenia-leaflet=assets/leaflet.js
         xenia-tabulator=assets/tabulator.js
+        xenia-ag-grid=assets/ag-grid.js
         xenia-fullcalendar=assets/fullcalendar.js
         xenia-xterm=assets/xterm.js
         xenia-monaco-diff=assets/monaco-diff.js

@@ -21,6 +21,7 @@ const ADAPTERS = {
   "tom-select": "createTomSelect",
   leaflet: "createLeaflet",
   tabulator: "createTabulator",
+  "ag-grid": "createAgGrid",
   fullcalendar: "createFullCalendar",
   xterm: "createXterm",
   "monaco-diff": "createMonacoDiff",
@@ -160,6 +161,7 @@ test("adapters that follow the app's theme ask for it", () => {
     chartjs: "createChartjs",
     xterm: "createXterm",
     uppy: "createUppy",
+    "ag-grid": "createAgGrid",
   })) {
     const adapter = entries[entry][factoryName]({ load: () => untouchable });
     assert.deepEqual(adapter.consumes, ["theme"], entry);

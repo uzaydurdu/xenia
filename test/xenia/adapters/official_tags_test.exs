@@ -22,6 +22,7 @@ defmodule Xenia.OfficialTagsTest do
     {Xenia.Adapters.TomSelect, :tom_select, "TomSelect", [options: []]},
     {Xenia.Adapters.Leaflet, :leaflet_map, "Leaflet", []},
     {Xenia.Adapters.Tabulator, :tabulator, "Tabulator", [data: [], columns: []]},
+    {Xenia.Adapters.AgGrid, :ag_grid, "AgGrid", [row_data: [], column_defs: []]},
     {Xenia.Adapters.FullCalendar, :full_calendar, "FullCalendar", []},
     {Xenia.Adapters.Xterm, :xterm, "Xterm", []},
     {Xenia.Adapters.MonacoDiff, :monaco_diff, "MonacoDiff", []},

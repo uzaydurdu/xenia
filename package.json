@@ -10,6 +10,10 @@
       "types": "./priv/types/xenia.d.ts",
       "default": "./priv/static/xenia.esm.js"
     },
+    "./ag-grid": {
+      "types": "./priv/types/ag-grid.d.ts",
+      "default": "./priv/static/xenia-ag-grid.esm.js"
+    },
     "./chartjs": {
       "types": "./priv/types/chartjs.d.ts",
       "default": "./priv/static/xenia-chartjs.esm.js"
@@ -81,6 +85,7 @@
     "@tiptap/core": "^3.0.0",
     "@uppy/core": "^6.0.0",
     "@xterm/xterm": "^6.0.0",
+    "ag-grid-community": "^36.0.0",
     "chart.js": "^4.4.0",
     "d3": "^7.0.0",
     "flatpickr": "^4.6.0",
@@ -106,6 +111,9 @@
       "optional": true
     },
     "@xterm/xterm": {
+      "optional": true
+    },
+    "ag-grid-community": {
       "optional": true
     },
     "chart.js": {

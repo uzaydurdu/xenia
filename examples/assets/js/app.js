@@ -85,6 +85,7 @@ const liveSocket = new LiveSocket("/live", Socket, {
       TomSelect: official.tomSelect,
       Leaflet: official.leaflet,
       Tabulator: official.tabulator,
+      AgGrid: official.agGrid,
       FullCalendar: official.fullcalendar,
       Xterm: official.xterm,
       MonacoDiff: official.monacoDiff,

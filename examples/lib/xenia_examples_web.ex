@@ -97,6 +97,7 @@ defmodule XeniaExamplesWeb do
       import Xenia.Adapters.Chartjs
 
       # Every other official adapter's tag
+      import Xenia.Adapters.AgGrid
       import Xenia.Adapters.D3
       import Xenia.Adapters.Flatpickr
       import Xenia.Adapters.FullCalendar

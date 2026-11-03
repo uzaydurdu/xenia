@@ -88,6 +88,7 @@ is a few lines: install the library, pass it in.
 | **Half-star rating** | Shoelace's rating, in half stars. | [`app/adapters/shoelace-rating`](lib/xenia_examples_web/app/adapters/shoelace-rating) |
 | **Sortable lists** | Drag cards between two lists (SortableJS). | [`app/adapters/sortable`](lib/xenia_examples_web/app/adapters/sortable) |
 | **Data table** | Edit, sort and select rows (Tabulator). | [`app/adapters/tabulator`](lib/xenia_examples_web/app/adapters/tabulator) |
+| **Data grid** | Filter, sort, edit, select and export rows (AG Grid Community). | [`app/adapters/ag-grid`](lib/xenia_examples_web/app/adapters/ag-grid) |
 | **Calendar** | Add and open events (FullCalendar). | [`app/adapters/calendar`](lib/xenia_examples_web/app/adapters/calendar) |
 | **Map** | Markers you click and drag (Leaflet). | [`app/adapters/map`](lib/xenia_examples_web/app/adapters/map) |
 | **Terminal** | A terminal the server answers (xterm.js). | [`app/adapters/terminal`](lib/xenia_examples_web/app/adapters/terminal) |

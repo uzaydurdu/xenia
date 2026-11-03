@@ -16,7 +16,7 @@ terminal) into Phoenix LiveView as a tag in your templates:
 ```
 
 Your assigns reach the library, its events reach `handle_event`, and the
-server can send it commands. No hand-written hooks. Sixteen popular
+server can send it commands. No hand-written hooks. Seventeen popular
 libraries have ready-made adapters, and any other takes a short one.
 
 [Install](#install) · [Your first island](#your-first-island) ·
@@ -181,6 +181,7 @@ JavaScript dependency you don't use.
 | Tiptap, rich text | `xenia/tiptap` | `<.tiptap>` |
 | Chart.js, D3 | `xenia/chartjs`, `xenia/d3` | `<.chartjs>`, `<.d3_chart>` |
 | Tabulator, data tables | `xenia/tabulator` | `<.tabulator>` |
+| AG Grid Community, data grids | `xenia/ag-grid` | `<.ag_grid>` |
 | FullCalendar | `xenia/fullcalendar` | `<.full_calendar>` |
 | Leaflet, maps | `xenia/leaflet` | `<.leaflet_map>` |
 | xterm.js, terminals | `xenia/xterm` | `<.xterm>` |

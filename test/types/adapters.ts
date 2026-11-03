@@ -1,8 +1,9 @@
-// The 16 official adapters from TypeScript, as the README and each tag
+// The 17 official adapters from TypeScript, as the README and each tag
 // module show them. Every factory needs `load`; their props, events and
 // commands are typed. Nothing here runs; tsc only checks it.
 
 import { createHooks, type Adapter } from "xenia"
+import { createAgGrid } from "xenia/ag-grid"
 import { createChartjs, type ChartjsEvents, type ChartjsInstance, type ChartjsProps } from "xenia/chartjs"
 import { createD3 } from "xenia/d3"
 import { createFlatpickr } from "xenia/flatpickr"
@@ -47,7 +48,15 @@ const d3 = createD3({
 
 const monaco = createMonaco({ load: () => library("monaco-editor"), setup: (_monaco, editor) => editor })
 
+const agGrid = createAgGrid({
+  load: () => library("ag-grid-community"),
+  theme: (ag) => ag.themeQuartz.withParams({ accentColor: "#7c3aed" }),
+  modules: (ag) => [ag.AllCommunityModule],
+  options: { columnTypes: { euro: { valueFormatter: (p: { value: number }) => `€${p.value}` } } },
+})
+
 export const hooks = createHooks({
+  AgGrid: agGrid,
   ChartJS: chartjs,
   D3: d3,
   Flatpickr: createFlatpickr({ load: () => library("flatpickr") }),
@@ -120,3 +129,13 @@ monaco.props!.value!(
   { text: "hello" },
   {} as any,
 )
+
+agGrid.commands!.ensure_visible(
+  {} as any,
+  // @ts-expect-error: AG Grid's positions are "top", "middle" and "bottom"
+  { id: 1, position: "center" },
+  {} as any,
+)
+
+// @ts-expect-error: AG Grid's selection is "single" or "multiple"
+const selection: import("xenia/ag-grid").AgGridProps = { row_selection: "many" }

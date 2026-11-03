@@ -14,8 +14,8 @@ component, with two complete examples: the Chart.js chart from the README,
 and a date picker that is a form field. The rules every adapter can rely on
 are in [What Xenia owns, what your adapter owns](ownership-boundary.md).
 
-For sixteen popular libraries you don't need to write anything: Monaco,
-Tiptap, Chart.js, D3, Tabulator, FullCalendar, Leaflet, xterm.js,
+For seventeen popular libraries you don't need to write anything: Monaco,
+Tiptap, Chart.js, D3, Tabulator, AG Grid, FullCalendar, Leaflet, xterm.js,
 flatpickr, Tom Select and more have official adapters you configure and
 extend (see "Official adapters" in the README). This guide is for every
 other library.

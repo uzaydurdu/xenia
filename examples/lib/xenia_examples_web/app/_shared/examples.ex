@@ -146,6 +146,11 @@ defmodule XeniaExamplesWeb.App.Examples do
         summary: "Edit, sort and select rows (Tabulator)."
       },
       %{
+        path: ~p"/adapters/ag-grid",
+        title: "Data grid",
+        summary: "Filter, sort, edit, select and export rows (AG Grid Community)."
+      },
+      %{
         path: ~p"/adapters/calendar",
         title: "Calendar",
         summary: "Add and open events (FullCalendar)."

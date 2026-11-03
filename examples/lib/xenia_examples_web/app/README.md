@@ -33,7 +33,7 @@ app/
     monaco/        /adapters/monaco
     tiptap/        /adapters/tiptap
     tabulator/     /adapters/tabulator
-    ...            d3, monaco-diff, flatpickr, tom-select, shoelace-rating,
+    ...            ag-grid, d3, monaco-diff, flatpickr, tom-select, shoelace-rating,
                    sortable, calendar, map, terminal, uppy, wavesurfer, multitrack
   forms/           /forms, official adapters as fields of one form
 ```

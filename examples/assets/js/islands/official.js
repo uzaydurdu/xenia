@@ -11,6 +11,7 @@ import { createSortablejs } from "xenia/sortablejs"
 import { createTomSelect } from "xenia/tom-select"
 import { createLeaflet } from "xenia/leaflet"
 import { createTabulator } from "xenia/tabulator"
+import { createAgGrid } from "xenia/ag-grid"
 import { createFullCalendar } from "xenia/fullcalendar"
 import { createXterm } from "xenia/xterm"
 import { createMonacoDiff } from "xenia/monaco-diff"
@@ -33,6 +34,21 @@ export const tomSelect = createTomSelect({ load: () => import("tom-select") })
 export const leaflet = createLeaflet({ load: () => import("leaflet") })
 
 export const tabulator = createTabulator({ load: () => import("tabulator-tables") })
+
+// AG Grid Community (MIT). Functions can't come from the server, so the
+// column types that need one are defined here, and columns name them:
+// %{field: "price", type: "euro"}.
+const euro = new Intl.NumberFormat("en", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })
+
+export const agGrid = createAgGrid({
+  load: () => import("ag-grid-community"),
+  theme: (ag) => ag.themeQuartz.withParams({ accentColor: "#7c3aed" }),
+  options: {
+    columnTypes: {
+      euro: { valueFormatter: (p) => (p.value == null ? "" : euro.format(p.value)) },
+    },
+  },
+})
 
 export const fullcalendar = createFullCalendar({
   load: async () => {

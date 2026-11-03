@@ -58,7 +58,7 @@ const pixel = (page, selector, fx, fy) =>
 test("home lists every example, and the sidebar stays alive across pages", async () => {
   const { page, problems } = await open("/")
 
-  assert.equal(await page.locator(".examples li").count(), 36)
+  assert.equal(await page.locator(".examples li").count(), 37)
   assert.equal(await text(page, "#pages-seen"), "1")
   await mark(page, "#sidebar")
 
@@ -81,7 +81,7 @@ test("every example on the home page shows how it's made", async () => {
   const paths = await page.locator(".examples li a").evaluateAll((links) =>
     links.map((link) => new URL(link.href).pathname),
   )
-  assert.equal(paths.length, 36)
+  assert.equal(paths.length, 37)
 
   const without = []
   for (const path of paths) {
@@ -92,7 +92,9 @@ test("every example on the home page shows how it's made", async () => {
   }
 
   assert.deepEqual(without, [], "examples without snippets")
-  assert.deepEqual(problems, [])
+  // /loading's second island fails on purpose, 600 ms after the page
+  // connects; under load, the test is still there when it does.
+  assert.deepEqual(problems.filter((p) => !p.includes("(on purpose)")), [])
   await page.close()
 })
 

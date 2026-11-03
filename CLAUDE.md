@@ -18,6 +18,8 @@ the implementation so the API can be criticised cheaply.
   Hex, from the public repository `github.com/uzaydurdu/xenia`.
 - **0.2.0:** complete (CHANGELOG dated 2026-11-01), being published by the
   author. The plan was `docs/NEXT_RELEASE.md`, local only.
+- **Unreleased, on `main` (2026-11-03):** the 17th official adapter, AG
+  Grid Community (§6 "Official adapters: AG Grid Community").
 
 Every milestone through M11 is complete, M8 is decided (a JS island, §2),
 and `examples/` holds a runnable examples app (§13). The paragraphs below
@@ -1578,6 +1580,42 @@ and one browser test per adapter in `examples/assets/e2e/adapters.test.mjs`
   `package.json`: esbuild then treats Phoenix's CommonJS `vendor/topbar.js`
   as ESM, and the build breaks.
 
+### Official adapters: AG Grid Community (verified 2026-11-03)
+
+`createAgGrid` from `"xenia/ag-grid"` (`assets/adapters/ag_grid.js`) and
+`<.ag_grid>` (`Xenia.Adapters.AgGrid`), the author's request: "the free part
+of it", so AG Grid Community 36 (MIT) only; Enterprise is neither used nor
+tested. Tests: `test/js/ag_grid.test.js` (15, a fake `createGrid`), the load
+contract in `official_adapters.test.js`, the tag test, a TypeScript
+fixture, and a browser test on the examples app's `/adapters/ag-grid`.
+
+- **AG Grid 33+ fits the `load` contract cleanly:** `createGrid(el,
+  options, { modules })` takes the modules per grid, so nothing is
+  registered globally; the factory's `modules` option can pass fewer than
+  `AllCommunityModule` for a smaller bundle. Its themes are JavaScript
+  (`themeQuartz`, `colorSchemeDark`), so there's no CSS to import, and the
+  app's theme is `setGridOption("theme", ...)` from the `theme` prop.
+- **Delta updates come from AG Grid:** with `getRowId` (from `row_id`), a
+  new `rowData` updates only the changed rows and keeps selection, sort
+  and filters. The adapter needs no diffing of its own (Tabulator's
+  `syncData` does). `getRowId` is the only option read once, so `row_id`
+  (and `options`) remount.
+- **Echoes are cut by AG Grid's event sources, not flags:** a selection
+  is reported unless its source is `api`, `rowDataChanged` and the like;
+  a sort only from `ui*` sources; a filter only from `columnFilter`; a
+  cell change unless its source is the adapter's own `"xenia"`
+  (`revert_edit` passes it to `setDataValue`). The browser test checks the
+  server's sort isn't reported back; with the source check removed, it
+  fails.
+- **Functions stay in JavaScript:** value formatters can't come from the
+  server, so the factory's `options.columnTypes` defines them and columns
+  name them with `type` (the example's `euro`).
+- **Found on the way, not AG Grid's:** the examples' "every example shows
+  how it's made" test visited `/loading`, whose second island fails on
+  purpose 600 ms after connecting. Under the parallel run's load the test
+  was still there when it did, and failed on the logged error. It now
+  ignores that one deliberate message, as the `/loading` test does.
+
 ### Starter template — `mix xenia.install` (verified 2026-10-25)
 
 Tested against the files of a pristine `mix phx.new` (Phoenix 1.8.9,
@@ -2422,7 +2460,7 @@ The README says when a plain hook is enough.
 | Declarations | **Split** (§12): Elixir declares the tag, JS supplies the adapter | Decided at M4. Since M10 the JS can also sit in the same module (co-located adapters, below) |
 | Co-located adapters | `<script :type={Phoenix.LiveView.ColocatedHook} name=".Chart">` exporting `adapterHook({...})`; named with `colocated(".Chart")` on `<.xenia>`, or `adapter: ".Chart"` on a declaration in the same module; a bare `".Chart"` on `<.xenia>` raises | M10. LiveView's public ColocatedHook, not a Xenia file format (§8). Compile-time resolution, because `<.xenia>` can't know its caller (§6 M10 findings) |
 | `adapterHook` | Exported from `"xenia"`; `createHooks` builds its hooks with it | M10. One Controller for both ways of registering |
-| Official adapters | A factory per library from its own entry point (`createChartjs` from `"xenia/chartjs"`, like `createMonaco` from `"xenia/monaco"`); the app passes the library with `load: () => import(...)`, or an object of named parts for libraries made of several packages (Tiptap, FullCalendar, Uppy, xterm, wavesurfer); factory options configure it (library plugins, default options, `setup`, D3's `charts`); the factory returns a plain adapter object, extended by spreading; an Elixir tag per adapter (`<.chartjs>`, `<.tiptap>`, ...); the theme through `consumes`. Sixteen ship: Monaco, Monaco diff, Tiptap, Chart.js, D3, Tabulator, FullCalendar, Leaflet, xterm, flatpickr, Tom Select, Shoelace rating, SortableJS, Uppy, wavesurfer, wavesurfer multitrack | The author, 2026-10-24/25. Stage 1 (Chart.js) was reviewed first; then the author asked for all fourteen others at once (2026-10-25), replacing the staged plan and the "experimental" status of Uppy, the wavesurfers and D3. Gates per adapter, all met: tests with no library installed, a browser test in `examples/`, the standalone-bundle check, docs in the tag module. Entry points live in the core package: decided for 0.1.0 by the author (2026-10-25), because moving them later would change users' imports. All MIT; no paid adapters |
+| Official adapters | A factory per library from its own entry point (`createChartjs` from `"xenia/chartjs"`, like `createMonaco` from `"xenia/monaco"`); the app passes the library with `load: () => import(...)`, or an object of named parts for libraries made of several packages (Tiptap, FullCalendar, Uppy, xterm, wavesurfer); factory options configure it (library plugins, default options, `setup`, D3's `charts`); the factory returns a plain adapter object, extended by spreading; an Elixir tag per adapter (`<.chartjs>`, `<.tiptap>`, ...); the theme through `consumes`. Seventeen ship: Monaco, Monaco diff, Tiptap, Chart.js, D3, Tabulator, AG Grid (Community), FullCalendar, Leaflet, xterm, flatpickr, Tom Select, Shoelace rating, SortableJS, Uppy, wavesurfer, wavesurfer multitrack | The author, 2026-10-24/25; AG Grid added at the author's request on 2026-11-03, Community (MIT) only ("free part of it"), through the same gates. Stage 1 (Chart.js) was reviewed first; then the author asked for all fourteen others at once (2026-10-25), replacing the staged plan and the "experimental" status of Uppy, the wavesurfers and D3. Gates per adapter, all met: tests with no library installed, a browser test in `examples/`, the standalone-bundle check, docs in the tag module. Entry points live in the core package: decided for 0.1.0 by the author (2026-10-25), because moving them later would change users' imports. All MIT; no paid adapters |
 | Keyboard shortcuts | `shortcuts` on every component: key combination → LiveView event, only while focus is inside, browser shortcuts refused, server events only, pending events flushed first | The author, 2026-10-24 (§4 Keyboard shortcuts). Plain `handle_event`, not a `handle_key_event`: nothing new to learn. Instant client-side shortcuts (mapping to an adapter command) can come later |
 | Examples | `examples/`: a runnable Phoenix app in the repository, built with the app folder, one page per feature (chart, form field, web component, theme, co-located adapter, `live.ex` tabs, two editors, an editor that stays open in a persistent part), one page per official adapter under `adapters/`, a form with five official adapters as fields under `forms/`, and a file-based routing example under `routing/` that uses every kind of folder (parameter, catch-all, group, private folder, nested layouts) and shows which file answers each URL, each with a plain-English README; depends on `{:xenia, path: ".."}` and links `"xenia": "file:../.."` in its `package.json` | The author's choice over copy-paste folders (2026-10-24): `xenia_demo` is private, so this is the only runnable showcase users see. The npm link resolves `"xenia"` whatever the checkout's folder is called |
 | Starter template | `mix xenia.install` edits a new Phoenix 1.8 app in place (since 2026-10-25 also `flash/1` in `core_components.ex` and `flash_group/1` in `layouts.ex`: a success kind, stacked, auto-closing with a countdown, replaced only when byte-for-byte what Phoenix 1.8 generates, with or without Gettext; since the metadata work also `root.html.heex`: `<Xenia.Metadata.tags>`, and `<.live_title>` without Phoenix's suffix; the layout and home page use `metadata/1`): Xenia's daisyUI themes (plain, purple primary, gold accent, `--depth: 0`, 1px borders) and a `.xenia-grid` pattern in `app.css`; `createHooks` and the theme provider in `app.js`; `import Xenia.Component`; `:xenia` in `import_deps`; `xenia_routes` in place of the `PageController` home route; a `layout.ex` and home `page.ex` from `priv/templates/xenia.install/`; the logo. Each step is skipped when already done, and left to the user ("by hand") when the file doesn't look like Phoenix's | The author, 2026-10-25, over forking Phoenix's generator (`mix phx.new` templates would have to follow every Phoenix release). Plain and Next.js-like, not fancy. The examples app uses the same theme |
@@ -2586,11 +2624,11 @@ xenia/
     monaco.js           # entry point for "xenia/monaco"
     <name>.js           # one entry point per official adapter ("xenia/tiptap", ...)
     core/               # createHooks, diffing, ctx, provider store
-    adapters/           # the sixteen official adapters and their shared.js
+    adapters/           # the seventeen official adapters and their shared.js
   test/
     fixtures/phoenix_1_8/  # a pristine mix phx.new's files, for xenia.install
     types/                 # tsc fixtures for priv/types (npm run types)
-  priv/static/          # built ESM, one bundle per entry point (17) — committed
+  priv/static/          # built ESM, one bundle per entry point (18) — committed
   priv/types/           # hand-written TypeScript declarations, one per entry point
   priv/templates/xenia.install/  # theme, grid, layout and home page for new apps
   mix.exs
@@ -2630,7 +2668,7 @@ xenia_demo/             # mix phx.new, depends on {:xenia, path: "../xenia"}
   also shows how it's made: a "How it's made" section of short snippets,
   `<.snippet title=... code={...}>` (`components/snippets.ex`), the code as
   a `~S` string so HEEx tags and braces show as they are (`~S'''` when the
-  code holds `~H"""`). Every example has one (36 pages); a browser test in
+  code holds `~H"""`). Every example has one (37 pages); a browser test in
   `examples.test.mjs` visits each example from the home page and fails if
   one shows no snippet. CI compiles, builds and browser-tests the
   examples (the `browser` job).

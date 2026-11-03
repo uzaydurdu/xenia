@@ -268,6 +268,64 @@ test("data table: sort by a header, edit a cell, add a row", async () => {
   await close()
 })
 
+test("data grid (AG Grid): edit, select, sorts from the user and the server, quick filter, add, export", async () => {
+  const { page, problems, close } = await open("/adapters/ag-grid")
+  await page.waitForSelector("#cars .ag-row[row-id]")
+  const rowIds = () =>
+    page.$$eval("#cars .ag-row[row-id]", (rows) =>
+      [...new Map(rows.map((r) => [r.getAttribute("row-index"), r.getAttribute("row-id")])).entries()]
+        .sort(([a], [b]) => Number(a) - Number(b))
+        .map(([, id]) => id),
+    )
+  const cell = (id, col) => `#cars .ag-row[row-id="${id}"] .ag-cell[col-id="${col}"]`
+  assert.deepEqual(await rowIds(), ["1", "2", "3", "4", "5", "6"])
+
+  // An edit reaches the server, which keeps it.
+  await page.locator(cell(2, "price")).dblclick()
+  await page.keyboard.press("ControlOrMeta+a")
+  await page.keyboard.type("30000")
+  await page.keyboard.press("Enter")
+  await waitText(page, "#last", /^Kia Niro now costs €30,000\.$/)
+  assert.equal(await text(page, cell(2, "price")), "€30,000", "the euro column type formats it")
+
+  // Ticking rows: the server gets their ids.
+  await page.locator(`${cell(1, "ag-Grid-SelectionColumn")} input`).check()
+  await page.locator(`${cell(3, "ag-Grid-SelectionColumn")} input`).check()
+  await waitText(page, "#selected", /Selected: Volvo EX30, Fiat 500e\s*$/)
+
+  // The server sorts (a prop), and the user sorts (an event).
+  await click(page, "#cheapest")
+  assert.deepEqual((await rowIds()).slice(0, 2), ["6", "4"], "Renault, then Toyota")
+  assert.equal(await text(page, "#last"), "The server sorted by price.", "the server's sort isn't reported back")
+  await page.locator('#cars .ag-header-cell[col-id="year"] .ag-header-cell-text').click()
+  await waitText(page, "#last", /^Sorted by year asc\.$/)
+  assert.equal((await rowIds())[0], "4", "the 2022 Toyota first")
+
+  // The filter box is a Phoenix form; its text is the grid's quick filter.
+  await page.fill("#query", "tesla")
+  await page.waitForFunction(() => document.querySelectorAll("#cars .ag-row[row-id]").length > 0)
+  await page.waitForTimeout(SETTLE)
+  assert.deepEqual(await rowIds(), ["5"])
+  await page.fill("#query", "")
+  await page.waitForTimeout(SETTLE)
+
+  // A new row from the server; the selection stays.
+  await click(page, "#add")
+  assert.equal((await rowIds()).length, 7)
+  assert.equal(await page.locator(`${cell(1, "ag-Grid-SelectionColumn")} input`).isChecked(), true)
+  assert.match(await text(page, "#selected"), /Selected: Volvo EX30, Fiat 500e$/)
+
+  // A command: the grid's CSV export.
+  const [download] = await Promise.all([page.waitForEvent("download"), page.click("#export")])
+  assert.equal(download.suggestedFilename(), "cars.csv")
+  const csv = await (await download.createReadStream()).toArray().then((parts) => Buffer.concat(parts).toString())
+  assert.match(csv, /Volvo/)
+  assert.match(csv, /Elroq 7/)
+
+  assert.deepEqual(problems, [])
+  await close()
+})
+
 test("calendar: a click on a day adds an event; a click on an event opens it; commands move", async () => {
   const { page, problems, close } = await open("/adapters/calendar")
   assert.equal(await page.locator("#calendar .fc-event").count(), 2)

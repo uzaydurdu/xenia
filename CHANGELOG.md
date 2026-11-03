@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+- **An official adapter for AG Grid Community** (MIT), the 17th:
+  `createAgGrid` from `"xenia/ag-grid"` and the `<.ag_grid>` tag
+  (`Xenia.Adapters.AgGrid`). AG Grid's own `column_defs` in snake_case,
+  rows matched by id (`row_id`) so a new `row_data` updates only the rows
+  that changed and keeps selection, sorting and filters; selection,
+  pagination, a quick filter, a filter model and a sort from the server,
+  none of them reported back as the user's; events for edits, clicks,
+  selection, sorting and filtering; commands for transactions (large data),
+  selecting rows, scrolling to a row, filters, CSV export, column sizing
+  and reverting an edit. It follows the app's theme. Functions (value
+  formatters and the like) live in the factory's `options.columnTypes`,
+  and columns name them with `type`. Built and tested with AG Grid
+  Community 36 only, not Enterprise. Example: `/adapters/ag-grid`.
+
 ## 0.2.0 (2026-11-01)
 
 - **Large data, measured and documented:** a prop is sent again whole when

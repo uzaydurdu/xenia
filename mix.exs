@@ -78,8 +78,8 @@ defmodule Xenia.MixProject do
              "priv/static/xenia-chartjs.esm.js"
            ] ++
              Enum.map(
-               ~w(flatpickr shoelace-rating sortablejs tom-select leaflet tabulator fullcalendar
-                  xterm monaco-diff tiptap uppy wavesurfer wavesurfer-multitrack d3),
+               ~w(flatpickr shoelace-rating sortablejs tom-select leaflet tabulator ag-grid
+                  fullcalendar xterm monaco-diff tiptap uppy wavesurfer wavesurfer-multitrack d3),
                &"priv/static/xenia-#{&1}.esm.js"
              )
 
@@ -214,6 +214,7 @@ defmodule Xenia.MixProject do
           Xenia.Adapters.ShoelaceRating,
           Xenia.Adapters.SortableJS,
           Xenia.Adapters.Tabulator,
+          Xenia.Adapters.AgGrid,
           Xenia.Adapters.FullCalendar,
           Xenia.Adapters.Leaflet,
           Xenia.Adapters.Xterm,
