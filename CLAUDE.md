@@ -2033,6 +2033,90 @@ LiveView 1.2.13, Chromium):
   parsing and comparing a key whose raw string didn't change. A core
   change: the author's decision (`docs/NEXT_RELEASE.md`).
 
+### Lifecycle integrity (Stage A, verified 2026-11-07)
+
+The lifecycle guard's Stage A (`docs/NEXT_RELEASE.md`): reproducing tests
+for the six failure categories (missing emit, missing binding,
+unacknowledged event, stale state, identity change, cleanup gap). No
+production code changed. Browser tests: `examples/assets/e2e/integrity.test.mjs`
+(10: 8 pass, 2 `todo` for the gaps below), on a test fixture,
+`/integrity` (`app/(tests)/integrity`, not on the home page), whose probe
+adapter logs every mount, update, command and destroy. Listener leaks are
+counted through Chrome DevTools, as in `listeners.test.mjs`. LiveView
+1.2.13, Chromium. Mutation-checked: without the hook's `destroy`, or
+without destroying an instance whose mount resolved after removal, the
+tests fail.
+
+**Protected today:**
+- **An island toggled by `:if`:** one destroy, then a clean mount; hooks
+  and listeners back to where they were. Ten quick toggles: every instance
+  destroyed exactly once, one left.
+- **A mount removed before it resolves:** destroyed once, as soon as it
+  resolves.
+- **An id that changes on every render** (category 5) is destroyed and
+  mounted on every patch, as LiveView treats a new id as a new element; a
+  stable id beside it is updated in place. Xenia can't tell this from
+  intent, so it's a diagnostic, never a fix.
+- **One microtask sees a whole patch.** In one patch the new root's mount
+  runs first, the updates follow, then the old root's destroy, all before
+  a microtask the mount queued. So pairing a destroy with a mount needs no
+  `LiveSocket` option and no observer (the lifecycle guard's decision 4).
+- **`null` in a payload arrives as `nil`**, not as a missing key, and an
+  empty payload as `%{}`.
+- **An unbound event** (category 2) is dropped silently: no push, no
+  message, as §4 says.
+- **An event with no `handle_event` clause** (category 3) crashes the
+  LiveView. The browser shows nothing: LiveView rejoins quietly, the server
+  starts over from `mount`, and islands with stable ids stay mounted; the
+  fresh assigns arrive as ordinary prop updates. The push got no reply,
+  which Xenia can't see today (events go through `execJS`).
+
+**Cleanup gap (category 6), reproduced.** A root removed by outside
+JavaScript is never destroyed until the next navigation. LiveView calls a
+hook's `destroyed()` only when a patch discards its element or the view
+goes, so the hook stays in the view, detached. Its library keeps its
+listeners, and the next render adds a second element and instance with the
+same id. Navigation then destroys both, each once.
+
+**A command can reach two instances.** The detached controller still runs
+commands, and once the replacement has mounted, one `Xenia.push_to/4`
+reaches both, which breaks §4 ("only to the current instance"). Both hooks
+subscribe to `xenia:command:<id>`, and `Controller.command()` checks only
+that the controller isn't destroyed, not that its root is in the page.
+Emits are safe: `ctx.emit` checks `isAlive()`, which needs a connected
+element.
+
+**Missing emits (category 1), the official adapters audited:**
+- **FullCalendar doesn't report an unselect.** It emits `select`, but
+  passes FullCalendar no `unselect` callback, so when the user clears a
+  selection (a click elsewhere, Escape) the server keeps the old range.
+- **Already emit the cleared state:** Tom Select and a form's tags (browser
+  tests), AG Grid's untick and header "deselect all" (checked in the
+  browser), Tabulator's deselect and cleared filter (read in Tabulator
+  6.7.1: `rowSelectionChanged` and `dataFiltered` both fire), flatpickr's
+  clear, SortableJS (the whole order every time), Uppy's "cancel all"
+  (`file-removed` per file in Uppy 6.3.0), xterm's emptied selection, and
+  Chart.js and D3 hover leaving (`{}`; the throttle sends its last call).
+- **Not reported, by design:** selection changes the server caused with
+  new data (AG Grid's `rowDataChanged`, Tabulator while applying props), a
+  flatpickr range with one end chosen, and D3's brush, which clears itself
+  after each report.
+
+**Measured** (`examples/assets/scripts/measure-observer.mjs`):
+- **The document-wide `MutationObserver`** (the unregistered-adapter
+  check): typing 216 keys in Monaco, its callback ran 217 times for 1.8 ms
+  in all, 0.008 ms per key. Main-thread time with and without it is within
+  run-to-run noise (median 888 and 868 ms; runs range 750–997).
+- **LiveView patch time:** median 1.3 ms on `/integrity` (five islands,
+  one remounting each time) and `/chart`, max 4.6 ms; about 2 ms for an
+  editor's change on `/adapters/monaco`.
+
+**LiveDebugger** (Software Mansion, v1.0, from its docs; not run): a
+component tree, assigns, callback traces with arguments and timing, and
+element inspection; a dev-only dependency on its own port (4007), and a
+browser extension. Its docs don't say whether a trace shows which assigns
+changed, and it has nothing for JavaScript hooks or client-side events.
+
 ### Subtraction study — completed
 
 Three hooks hand-written to the same standard, every line annotated as
