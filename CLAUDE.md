@@ -18,8 +18,11 @@ the implementation so the API can be criticised cheaply.
   Hex, from the public repository `github.com/uzaydurdu/xenia`.
 - **0.2.0:** complete (CHANGELOG dated 2026-11-01), being published by the
   author. The plan was `docs/NEXT_RELEASE.md`, local only.
-- **Unreleased, on `main` (2026-11-03):** the 17th official adapter, AG
-  Grid Community (§6 "Official adapters: AG Grid Community").
+- **0.2.1 (2026-11-07), being published by the author:** the 17th
+  official adapter, AG Grid Community (§6 "Official adapters: AG Grid
+  Community"), and two fixes from the lifecycle guard's Stage A (§6
+  "Lifecycle integrity"): commands only for an island in the page, and
+  FullCalendar's `unselect` event.
 
 Every milestone through M11 is complete, M8 is decided (a JS island, §2),
 and `examples/` holds a runnable examples app (§13). The paragraphs below
@@ -2039,7 +2042,7 @@ The lifecycle guard's Stage A (`docs/NEXT_RELEASE.md`): reproducing tests
 for the six failure categories (missing emit, missing binding,
 unacknowledged event, stale state, identity change, cleanup gap). No
 production code changed. Browser tests: `examples/assets/e2e/integrity.test.mjs`
-(10: 8 pass, 2 `todo` for the gaps below), on a test fixture,
+(10: 9 pass, 1 `todo` for the cleanup gap below), on a test fixture,
 `/integrity` (`app/(tests)/integrity`, not on the home page), whose probe
 adapter logs every mount, update, command and destroy. Listener leaks are
 counted through Chrome DevTools, as in `listeners.test.mjs`. LiveView
@@ -2078,18 +2081,25 @@ goes, so the hook stays in the view, detached. Its library keeps its
 listeners, and the next render adds a second element and instance with the
 same id. Navigation then destroys both, each once.
 
-**A command can reach two instances.** The detached controller still runs
-commands, and once the replacement has mounted, one `Xenia.push_to/4`
-reaches both, which breaks §4 ("only to the current instance"). Both hooks
-subscribe to `xenia:command:<id>`, and `Controller.command()` checks only
-that the controller isn't destroyed, not that its root is in the page.
-Emits are safe: `ctx.emit` checks `isAlive()`, which needs a connected
-element.
+**A command could reach two instances. Fixed in 0.2.1.** The detached
+controller still ran commands, and once the replacement had mounted, one
+`Xenia.push_to/4` reached both, which broke §4 ("only to the current
+instance"). Both hooks subscribe to `xenia:command:<id>`, and
+`Controller.command()` checked only that the controller wasn't destroyed.
+It now also drops a command for a root that isn't in the page (queued ones
+too). Tests: two in `test/js/controller.test.js` and the integrity test C,
+each failing without the check. Emits were always safe: `ctx.emit` checks
+`isAlive()`, which needs a connected element.
 
 **Missing emits (category 1), the official adapters audited:**
-- **FullCalendar doesn't report an unselect.** It emits `select`, but
-  passes FullCalendar no `unselect` callback, so when the user clears a
-  selection (a click elsewhere, Escape) the server keeps the old range.
+- **FullCalendar didn't report an unselect. Fixed in 0.2.1:** an
+  `unselect` event (`on_unselect`). FullCalendar 6.1 calls its `unselect`
+  callback synchronously whenever a selection goes, inside its own API
+  calls too, with no event to tell the user from the server (checked with
+  the real library in jsdom). So the adapter marks the server's own
+  `select` and `unselect` commands and doesn't report those; a click
+  elsewhere, a new selection and other dates shown are reported. Tests:
+  `test/js/fullcalendar.test.js` (3, mutation-checked).
 - **Already emit the cleared state:** Tom Select and a form's tags (browser
   tests), AG Grid's untick and header "deselect all" (checked in the
   browser), Tabulator's deselect and cleared filter (read in Tabulator

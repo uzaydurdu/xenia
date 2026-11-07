@@ -51,6 +51,8 @@ export interface FullCalendarEvents {
   event_click: { event: FullCalendarEvent };
   date_click: { date: string; all_day: boolean };
   select: { start: string; end: string; all_day: boolean };
+  /** The user cleared the selection; not sent for the server's own select or unselect command. */
+  unselect: Record<string, never>;
   event_change: { event: FullCalendarEvent; old_event: FullCalendarEvent; kind: "drop" | "resize" };
   dates_set: { start: string; end: string; view: string };
   error: AdapterError;

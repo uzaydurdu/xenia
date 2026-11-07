@@ -76,6 +76,9 @@ defmodule Xenia.Adapters.FullCalendar do
       event_click   %{event}
       date_click    %{date, all_day}
       select        %{start, end, all_day}
+      unselect      %{}  the user cleared the selection: a click elsewhere,
+                         a new selection, other dates shown (not the
+                         server's own select or unselect command)
       event_change  %{event, old_event, kind: "drop" | "resize"}
       dates_set     %{start, end, view}   the visible range changed
       error         %{source, message, code}
@@ -101,6 +104,7 @@ defmodule Xenia.Adapters.FullCalendar do
     event :event_click
     event :date_click
     event :select
+    event :unselect
     event :event_change
     event :dates_set
     event :error

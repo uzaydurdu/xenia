@@ -962,7 +962,11 @@ export class Controller {
    * @param {*}      payload Arguments passed to the handler.
    */
   command(name, payload) {
-    if (this.state === State.DESTROYED) return;
+    // A root removed from the page by outside JavaScript keeps its hook
+    // until the next navigation, and a replacement with the same id listens
+    // for the same commands: only the one in the page runs them (CLAUDE.md
+    // §4 Commands, §6 "Lifecycle integrity").
+    if (this.state === State.DESTROYED || !this.hook.el.isConnected) return;
 
     if (this.isWaitingForInstance()) {
       this.commands.push({ name, payload });

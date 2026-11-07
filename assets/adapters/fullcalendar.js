@@ -31,6 +31,9 @@
  *   event_click   %{event}
  *   date_click    %{date, all_day}
  *   select        %{start, end, all_day}
+ *   unselect      %{}   the user cleared the selection: a click elsewhere,
+ *                       a new selection, other dates shown (not the
+ *                       server's own select or unselect command)
  *   event_change  %{event, old_event, kind: "drop" | "resize"}
  *   dates_set     %{start, end, view}   the visible range changed
  *   error         %{source, message, code}
@@ -91,6 +94,16 @@ export function createFullCalendar({ load: libraryImport } = {}) {
   const loadLibrary = loadOnce(libraryImport, LOAD);
   let Calendar, calendarPlugins;
   const SOURCE_ID = "xenia";
+
+  /** Runs the server's own selection change, which isn't reported back. */
+  function applying(instance, change) {
+    instance.applying = true;
+    try {
+      change();
+    } finally {
+      instance.applying = false;
+    }
+  }
 
   /** Options the adapter sets itself; `options` can't override them. */
   const MANAGED = new Set(["events", "eventSources", "plugins"]);
@@ -169,6 +182,7 @@ export function createFullCalendar({ load: libraryImport } = {}) {
         options: {},
         base: {},
         reverts: new Map(),
+        applying: false, // during the server's select and unselect commands
       };
 
       const recordChange = (kind) => (info) => {
@@ -215,6 +229,11 @@ export function createFullCalendar({ load: libraryImport } = {}) {
             end: info.endStr,
             all_day: info.allDay,
           }),
+        // FullCalendar calls it whenever a selection goes, synchronously,
+        // also inside its own API calls.
+        unselect: () => {
+          if (!instance.applying) ctx.emit("unselect", {});
+        },
         eventDrop: recordChange("drop"),
         eventResize: recordChange("resize"),
         datesSet: (info) =>
@@ -289,10 +308,12 @@ export function createFullCalendar({ load: libraryImport } = {}) {
 
       select: guarded("select", (i, { start, end }) => {
         requireDate("select", start);
-        i.calendar.select(start, end);
+        applying(i, () => i.calendar.select(start, end));
       }),
 
-      unselect: guarded("unselect", (i) => i.calendar.unselect()),
+      unselect: guarded("unselect", (i) =>
+        applying(i, () => i.calendar.unselect()),
+      ),
 
       revert_change: guarded("revert_change", (i, { id }) => {
         const revert = i.reverts.get(String(id));
@@ -311,6 +332,7 @@ export function createFullCalendar({ load: libraryImport } = {}) {
       event_click: {},
       date_click: {},
       select: {},
+      unselect: {},
       event_change: {},
       dates_set: {},
       error: {},

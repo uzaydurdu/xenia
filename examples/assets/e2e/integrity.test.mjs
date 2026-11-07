@@ -164,8 +164,8 @@ test("C: a root removed by outside JavaScript is cleaned up once the patch settl
     await page.close()
   })
 
+// Fixed in 0.2.1: Controller.command() runs only for a root in the page.
 test("C: a command reaches only the current instance for its id (CLAUDE.md §4 Commands)",
-  { todo: "a detached controller still runs commands: Controller.command() doesn't check that its root is in the page" },
   async () => {
     const { page } = await open()
 

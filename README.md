@@ -29,7 +29,7 @@ Xenia needs Elixir 1.15 or later, Phoenix 1.8 and LiveView 1.2. Add it to
 the deps in `mix.exs`:
 
 ```elixir
-{:xenia, "~> 0.2.0"}
+{:xenia, "~> 0.2.1"}
 ```
 
 Then:

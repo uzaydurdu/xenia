@@ -124,7 +124,7 @@ folder.
 
 ## Use Xenia in your own app
 
-First add Xenia to `mix.exs`: `{:xenia, "~> 0.2.0"}`. (This app uses the
+First add Xenia to `mix.exs`: `{:xenia, "~> 0.2.1"}`. (This app uses the
 code in this repository instead: `{:xenia, path: ".."}`.) In a new Phoenix
 app, run `mix xenia.install` next: it adds the theme, a layout, a home page
 in the app folder, and the hooks. In an existing app,

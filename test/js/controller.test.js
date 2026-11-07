@@ -469,6 +469,49 @@ test("commands are queued during mount and replayed in order", async (t) => {
   ]);
 });
 
+/**
+ * A root removed from the page by outside JavaScript keeps its hook until
+ * the next navigation: LiveView destroys only the hooks a patch discards.
+ * The next render mounts a replacement with the same id, subscribed to the
+ * same command event, so the old controller must not run commands
+ * (CLAUDE.md §4 Commands, §6 "Lifecycle integrity").
+ */
+test("commands for a root that left the page are dropped", async (t) => {
+  const { hook, adapter, calls } = setup(t);
+  const controller = new Controller(hook, adapter);
+  await controller.mount();
+
+  controller.command("run", { step: 1 });
+  hook.el.remove();
+  controller.command("run", { step: 2 });
+
+  assert.deepEqual(
+    calls.filter(([kind]) => kind === "run"),
+    [["run", { step: 1 }]],
+  );
+});
+
+test("commands queued during mount are dropped if the root leaves the page first", async (t) => {
+  const { hook, adapter, calls } = setup(t);
+
+  const pending = deferred();
+  adapter.mount = () => pending.promise;
+
+  const controller = new Controller(hook, adapter);
+  const mounting = controller.mount();
+
+  controller.command("run", { step: 1 });
+  hook.el.remove();
+
+  pending.resolve({});
+  await mounting;
+
+  assert.deepEqual(
+    calls.filter(([kind]) => kind === "run"),
+    [],
+  );
+});
+
 // -----------------------------------------------------------------------------
 // 7. REMOUNT TEST CASES
 //    ctx.remount() replaces the adapter instance while the Controller lives

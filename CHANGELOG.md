@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.1 (2026-11-07)
 
 - **An official adapter for AG Grid Community** (MIT), the 17th:
   `createAgGrid` from `"xenia/ag-grid"` and the `<.ag_grid>` tag
@@ -15,6 +15,16 @@
   formatters and the like) live in the factory's `options.columnTypes`,
   and columns name them with `type`. Built and tested with AG Grid
   Community 36 only, not Enterprise. Example: `/adapters/ag-grid`.
+- **FullCalendar reports a cleared selection.** The user clearing a date
+  selection (a click elsewhere, a new selection, other dates shown) sends
+  the new `unselect` event (`on_unselect`), so the server no longer keeps
+  a range the calendar has dropped. The server's own `select` and
+  `unselect` commands aren't reported back.
+- **Fix: a command reaches only the island in the page.** If outside
+  JavaScript removed an island's element, its LiveView hook stayed until
+  the next navigation, and once the next render had added a replacement
+  with the same id, one `Xenia.push_to/4` ran on both. Commands now run
+  only for an island that's in the page.
 
 ## 0.2.0 (2026-11-01)
 
